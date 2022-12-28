@@ -7,6 +7,7 @@ from matplotlib import style
 import os
 import pandas as pd
 from pprint import pprint
+import tqdm as tqdm
 import yfinance as yf
 
 matplotlib.use('TkAgg')
@@ -16,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 
 def get_data(symbol):
 
-    fname = os.path.join('../data/', symbol + '.csv')
+    fname = os.path.join('../data/', f'{symbol}.csv')
     if not os.path.exists(fname):
         return None
 
@@ -35,7 +36,7 @@ def get_symbols(exchange):
     else:
         raise Exception(f'Unknown exchange {exchange}')
 
-    df = pd.read_csv(filename)
+    df = pd.read_csv(filename, sep="\t")
 
     return df
 
@@ -97,7 +98,6 @@ def plot_symbol(df):
 def process_symbol(symbol, plot=False):
     df = get_data(symbol)
     record = analyze_symbol(df, symbol)
-    logging.debug(pprint(record))
     if plot:
         plot_symbol(df)
 
@@ -109,7 +109,7 @@ def generate_pickle_file(exchange):
     symbols = list(get_symbols(exchange)['Symbol'])
 
     results = []
-    for symbol in symbols:
+    for symbol in tqdm.tqdm(symbols):
         record = process_symbol(symbol)
         if record:
             results.append(record)
@@ -136,16 +136,16 @@ def process_exchange(exchange, sort_by='180d_delta', top_n=10):
     return results_df.iloc[0:top_n]
 
 
-process_exchange('NYSE', sort_by='10d_delta', top_n=40)
+#process_exchange('NYSE', sort_by='10d_delta', top_n=40)
 
-df = get_data('DASH')
+#df = get_data('DASH')
 #chart = alt.Chart(df).mark_point().encode(x='Date:T', y='Close')
 # chart.display()
 
-data = pd.DataFrame({'col-1': list('CCCDDDEEE'),
-                     'col-2': [2, 7, 4, 1, 2, 6, 8, 4, 7]})
-chart = alt.Chart(data)
-alt.Chart(data).mark_point().encode(
-    x='col-1',
-    y='col-2'
-)
+#data = pd.DataFrame({'col-1': list('CCCDDDEEE'),
+#                     'col-2': [2, 7, 4, 1, 2, 6, 8, 4, 7]})
+#chart = alt.Chart(data)
+#alt.Chart(data).mark_point().encode(
+#    x='col-1',
+#    y='col-2'
+#)
