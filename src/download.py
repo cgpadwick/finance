@@ -5,6 +5,7 @@ import logging
 from multiprocessing import Pool, cpu_count
 import os
 import pandas as pd
+import tqdm as tqdm
 import yfinance as yf
 
 logging.basicConfig(level=logging.INFO)
@@ -14,11 +15,17 @@ NUM_CPUS = cpu_count()
 
 def download_symbol(symbol, startdate):
 
-    obj = yf.Ticker(symbol)
-    hist = obj.history(start=startdate, end=date.today(), debug=False)
-    if hist.shape[0] > 0:
-        fname = os.path.join('../data', symbol + '.csv')
-        hist.to_csv(fname)
+    try: 
+        obj = yf.Ticker(symbol)
+        hist = obj.history(start=startdate, end=date.today(), debug=False)
+        if hist.shape[0] > 0:
+            fname = os.path.join('../data', symbol + '.csv')
+            hist.to_csv(fname)
+        return
+    except:
+        logging.info(
+        f'Exception occurred processing symbol {symbol}.  Skipping.')
+    
     return
 
 
@@ -31,7 +38,7 @@ def get_exchange_symbols(exchange):
     else:
         raise Exception(f'Unknown exchange {exchange}')
 
-    df = pd.read_csv(filename)
+    df = pd.read_csv(filename, sep="\t")
     return(list(df['Symbol']))
 
 
@@ -46,7 +53,8 @@ def main(exchange, startdate, nthreads):
 
     logging.info(
         f'Downloading symbols from {exchange} with {num_threads} threads...')
-    pool.map(functools.partial(download_symbol, startdate=startdate), symbols)
+    partial_func = functools.partial(download_symbol, startdate=startdate)
+    stock_data = list(tqdm.tqdm(pool.imap_unordered(partial_func, symbols), total=len(symbols)))
     logging.info('Done')
 
 
