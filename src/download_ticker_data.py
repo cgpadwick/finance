@@ -100,7 +100,8 @@ def download_stock_data(symbol, start, end, max_retries, retry_delay):
     for attempt in range(1, max_retries + 1):
         try:
             stock = yf.Ticker(symbol)
-            df = stock.history(start=start, end=end)
+            # Fetch auto adjusted close data.
+            df = stock.history(start=start, end=end, auto_adjust=True)
             if df.empty:
                 logging.warning(
                     f"No data found for {symbol} between {start} and {end}."
