@@ -62,6 +62,7 @@ export interface EmbeddingPoint {
   symbol: string;
   x: number;
   y: number;
+  z?: number;
   score: number;
   sector?: string;
   industry?: string;

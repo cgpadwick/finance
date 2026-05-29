@@ -25,14 +25,15 @@ from finance.store import BarStore
 RANDOM_STATE = 42
 
 
-def _reduce(X: np.ndarray, method: str) -> np.ndarray:
-    """Reduce an (n_symbols, n_days) return matrix to 2D."""
+def _reduce(X: np.ndarray, method: str, n_components: int = 2) -> np.ndarray:
+    """Reduce an (n_symbols, n_days) return matrix to n_components dims (2 or 3)."""
     method = method.lower()
     n = X.shape[0]
     if method == "umap":
         import umap  # lazy: heavy import (numba)
 
         reducer = umap.UMAP(
+            n_components=n_components,
             n_neighbors=min(15, max(2, n - 1)),
             min_dist=0.1,
             metric="correlation",
@@ -43,7 +44,7 @@ def _reduce(X: np.ndarray, method: str) -> np.ndarray:
         from sklearn.manifold import TSNE
 
         reducer = TSNE(
-            n_components=2,
+            n_components=n_components,
             metric="correlation",
             init="pca",
             perplexity=min(30, max(5, n // 4)),
@@ -53,7 +54,7 @@ def _reduce(X: np.ndarray, method: str) -> np.ndarray:
     if method == "pca":
         from sklearn.decomposition import PCA
 
-        return PCA(n_components=2, random_state=RANDOM_STATE).fit_transform(X)
+        return PCA(n_components=n_components, random_state=RANDOM_STATE).fit_transform(X)
     raise ValueError(f"Unknown embedding method: {method!r}")
 
 
@@ -62,11 +63,12 @@ def compute_embedding(
     cfg: AppConfig | None = None,
     method: str = "umap",
     as_of_date: str | None = None,
+    dims: int = 2,
 ) -> pd.DataFrame:
-    """Embed the eligible (leaderboard) universe into 2D, with score/sector.
+    """Embed the eligible (leaderboard) universe into 2D or 3D, with score/sector.
 
-    Returns columns: symbol, x, y, score, sector, industry, name,
-    is_winner, is_loser, last_close. Empty frame if not enough data.
+    Returns columns: symbol, x, y, (z if dims==3), score, sector, industry,
+    name, is_winner, is_loser, last_close. Empty frame if not enough data.
     """
     cfg = cfg or load_config()
     own_store = store is None
@@ -86,12 +88,15 @@ def compute_embedding(
         if rets.shape[1] < 5:
             return pd.DataFrame()
 
+        dims = 3 if dims == 3 else 2
         X = rets.T.values  # rows = symbols, cols = days
-        coords = _reduce(X, method)
+        coords = _reduce(X, method, n_components=dims)
 
         emb = pd.DataFrame(
             {"symbol": rets.columns, "x": coords[:, 0], "y": coords[:, 1]}
         )
+        if dims == 3:
+            emb["z"] = coords[:, 2]
         keep = [
             "symbol", "score", "sector", "industry", "name",
             "is_winner", "is_loser", "last_close",

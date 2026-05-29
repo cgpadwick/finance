@@ -28,7 +28,7 @@ Architecture target: `ingest (Alpaca, adjusted bars) → DuckDB store → moment
 
 - React 19 + Vite + TS, Tailwind v4 (`@tailwindcss/vite`), TanStack Query + Table, TradingView **Lightweight Charts v5** (note v5 API: `chart.addSeries(CandlestickSeries, {...})`, not `addCandlestickSeries`).
 - Dev: `npm run dev` (Vite on :5173) proxies `/api` → `:8077` (see `vite.config.ts`), so the SPA uses same-origin relative URLs in both dev and prod. Build: `npm run build` → `frontend/dist`.
-- Pages: `Leaderboard.tsx` (TanStack Table, winners/losers/all toggle, sector column + filter, lookback/as-of `AnalysisControls`, live `FilterPanel` tuning), `StockDetail.tsx` (candlestick + MA overlays + signal stats), and `MarketMap.tsx` (ECharts scatter of the UMAP embedding, color-by score/sector, click→detail; **lazy-loaded** so ECharts isn't in the main bundle).
+- Pages: `Leaderboard.tsx` (TanStack Table, winners/losers/all toggle, sector column + filter, lookback/as-of `AnalysisControls`, live `FilterPanel` tuning), `StockDetail.tsx` (candlestick + MA overlays + signal stats), and `MarketMap.tsx` (2D/3D ECharts scatter of the UMAP embedding — 3D via `echarts-gl` scatter3D/grid3D, drag to rotate — color-by score/sector, click→detail; **lazy-loaded** so ECharts/echarts-gl aren't in the main bundle). `/api/embedding?dims=3` returns x/y/z.
 - DuckDB is single-writer: don't run `make ingest`/`make sectors` (writers) while `make api` (reader) is up, or the reader hits a lock error. Run writers offline, then serve.
 
 ### Commands

@@ -43,11 +43,11 @@ export function useStock(symbol: string | undefined) {
   });
 }
 
-export function useEmbedding(method: string) {
+export function useEmbedding(method: string, dims: number) {
   return useQuery({
-    queryKey: ["embedding", method],
+    queryKey: ["embedding", method, dims],
     queryFn: () =>
-      fetchJson<EmbeddingResponse>(`/api/embedding?method=${method}`),
+      fetchJson<EmbeddingResponse>(`/api/embedding?method=${method}&dims=${dims}`),
   });
 }
 

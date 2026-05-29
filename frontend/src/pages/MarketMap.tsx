@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactECharts from "echarts-for-react";
+import "echarts-gl"; // registers scatter3D / grid3D
 import { useEmbedding } from "../lib/api";
 import type { EmbeddingPoint } from "../types";
 
@@ -23,10 +24,19 @@ const SECTOR_COLORS: Record<string, string> = {
   Other: "#94a3b8",
 };
 
+const tooltipFormatter = (p: { data: { d: EmbeddingPoint } }) => {
+  const d = p.data.d;
+  const tag = d.is_winner ? "🟢 winner" : d.is_loser ? "🔴 loser" : "";
+  return `<b>${d.symbol}</b> ${tag}<br/>${d.name ?? ""}<br/>${d.sector ?? "—"}<br/>score ${d.score?.toFixed(
+    2,
+  )} · $${d.last_close?.toFixed(0)}`;
+};
+
 export function MarketMap() {
   const [method, setMethod] = useState<Method>("umap");
   const [colorBy, setColorBy] = useState<ColorBy>("score");
-  const { data, isLoading, isFetching, error } = useEmbedding(method);
+  const [is3d, setIs3d] = useState(true);
+  const { data, isLoading, isFetching, error } = useEmbedding(method, is3d ? 3 : 2);
   const navigate = useNavigate();
 
   const points = data?.points ?? [];
@@ -36,30 +46,50 @@ export function MarketMap() {
       backgroundColor: "#0f1722",
       borderColor: "#1f2733",
       textStyle: { color: "#e6edf3", fontSize: 12 },
-      formatter: (p: { data: { d: EmbeddingPoint } }) => {
-        const d = p.data.d;
-        const tag = d.is_winner ? "🟢 winner" : d.is_loser ? "🔴 loser" : "";
-        return `<b>${d.symbol}</b> ${tag}<br/>${d.name ?? ""}<br/>${
-          d.sector ?? "—"
-        }<br/>score ${d.score?.toFixed(2)} · $${d.last_close?.toFixed(0)}`;
-      },
+      formatter: tooltipFormatter,
+    };
+    const scores = points.map((p) => p.score);
+    const seriesType = is3d ? "scatter3D" : "scatter";
+    // value layout: [x, y] (2D) or [x, y, z] (3D); score appended for visualMap dim
+    const valueOf = (p: EmbeddingPoint) =>
+      is3d ? [p.x, p.y, p.z ?? 0, p.score] : [p.x, p.y, p.score];
+    const scoreDim = is3d ? 3 : 2;
+
+    const axisCommon = {
+      axisLine: { lineStyle: { color: "#334155" } },
+      splitLine: { lineStyle: { color: "#1a2230" } },
+      axisLabel: { show: false },
+      nameTextStyle: { color: "#64748b" },
     };
 
-    const base = {
-      grid: { left: 8, right: 8, top: 8, bottom: 8 },
-      xAxis: { show: false, scale: true },
-      yAxis: { show: false, scale: true },
-      tooltip,
-    };
+    const coordBlock = is3d
+      ? {
+          grid3D: {
+            boxWidth: 100,
+            boxDepth: 100,
+            boxHeight: 100,
+            viewControl: { distance: 200, autoRotate: false },
+            axisPointer: { show: false },
+            environment: "#0a0e14",
+          },
+          xAxis3D: { ...axisCommon, scale: true },
+          yAxis3D: { ...axisCommon, scale: true },
+          zAxis3D: { ...axisCommon, scale: true },
+        }
+      : {
+          grid: { left: 8, right: 8, top: 8, bottom: 8 },
+          xAxis: { show: false, scale: true },
+          yAxis: { show: false, scale: true },
+        };
 
     if (colorBy === "score") {
-      const scores = points.map((p) => p.score);
       return {
-        ...base,
+        tooltip,
+        ...coordBlock,
         visualMap: {
           min: Math.min(...scores, -1),
           max: Math.max(...scores, 1),
-          dimension: 2,
+          dimension: scoreDim,
           calculable: true,
           orient: "vertical",
           right: 4,
@@ -69,43 +99,32 @@ export function MarketMap() {
         },
         series: [
           {
-            type: "scatter",
-            symbolSize: 11,
-            data: points.map((p) => ({
-              value: [p.x, p.y, p.score],
-              d: p,
-            })),
-            itemStyle: { opacity: 0.85, borderColor: "#0a0e14", borderWidth: 0.5 },
+            type: seriesType,
+            symbolSize: is3d ? 8 : 11,
+            data: points.map((p) => ({ value: valueOf(p), d: p })),
+            itemStyle: { opacity: 0.85 },
           },
         ],
       };
     }
 
-    // color by sector: one series per sector for a usable legend
+    // color by sector — one series per sector for a legend
     const sectors = Array.from(new Set(points.map((p) => p.sector ?? "Unknown")));
     return {
-      ...base,
-      legend: {
-        type: "scroll",
-        textStyle: { color: "#94a3b8", fontSize: 10 },
-        top: 0,
-      },
+      tooltip,
+      ...coordBlock,
+      legend: { type: "scroll", textStyle: { color: "#94a3b8", fontSize: 10 }, top: 0 },
       series: sectors.map((sec) => ({
         name: sec,
-        type: "scatter",
-        symbolSize: 11,
-        itemStyle: {
-          color: SECTOR_COLORS[sec] ?? "#94a3b8",
-          opacity: 0.85,
-          borderColor: "#0a0e14",
-          borderWidth: 0.5,
-        },
+        type: seriesType,
+        symbolSize: is3d ? 8 : 11,
+        itemStyle: { color: SECTOR_COLORS[sec] ?? "#94a3b8", opacity: 0.85 },
         data: points
           .filter((p) => (p.sector ?? "Unknown") === sec)
-          .map((p) => ({ value: [p.x, p.y], d: p })),
+          .map((p) => ({ value: valueOf(p), d: p })),
       })),
     };
-  }, [points, colorBy]);
+  }, [points, colorBy, is3d]);
 
   const onEvents = {
     click: (p: { data?: { d?: EmbeddingPoint } }) => {
@@ -123,7 +142,23 @@ export function MarketMap() {
             {isFetching && <span className="ml-2 text-sky-400">computing…</span>}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-1 rounded-lg border border-slate-800 p-1">
+            {([
+              { k: true, label: "3D" },
+              { k: false, label: "2D" },
+            ] as { k: boolean; label: string }[]).map(({ k, label }) => (
+              <button
+                key={label}
+                onClick={() => setIs3d(k)}
+                className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                  is3d === k ? "bg-sky-700/70 text-sky-50" : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-1 rounded-lg border border-slate-800 p-1">
             {(["score", "sector"] as ColorBy[]).map((c) => (
               <button
@@ -166,6 +201,7 @@ export function MarketMap() {
           </div>
         ) : (
           <ReactECharts
+            key={is3d ? "3d" : "2d"}
             option={option}
             onEvents={onEvents}
             style={{ height: 560 }}
@@ -174,9 +210,10 @@ export function MarketMap() {
         )}
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-        Built from 1-year daily-return correlations (UMAP/t-SNE/PCA). Clusters are
-        meaningful — stocks that cluster move together — but absolute positions,
-        axes, and distances between clusters are not. Click a dot to open the stock.
+        Built from 1-year daily-return correlations (UMAP/t-SNE/PCA). In 3D, drag
+        to rotate and scroll to zoom. Clusters are meaningful — stocks that cluster
+        move together — but absolute positions, axes, and distances between clusters
+        are not. Click a dot to open the stock.
       </p>
     </div>
   );
