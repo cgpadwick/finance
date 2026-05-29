@@ -152,6 +152,39 @@ def leaderboard(
     return JSONResponse(content=json.loads(_cached_leaderboard(key)))
 
 
+@lru_cache(maxsize=16)
+def _cached_embedding(key: str) -> str:
+    params = json.loads(key)
+    from finance.embedding import compute_embedding
+
+    cfg = _config_with_overrides(params)
+    store = _read_store()
+    try:
+        emb = compute_embedding(
+            store, cfg, method=params.get("method", "umap"), as_of_date=params.get("as_of")
+        )
+    finally:
+        store.close()
+    if emb.empty:
+        return json.dumps({"count": 0, "points": []})
+    return json.dumps({"count": int(len(emb)), "points": _clean_records(emb)})
+
+
+@app.get("/api/embedding")
+def embedding(
+    method: str = Query("umap", description="umap | tsne | pca"),
+    lookback_days: int | None = Query(None),
+    as_of: str | None = Query(None),
+):
+    params = {"method": method}
+    if lookback_days is not None:
+        params["lookback_days"] = lookback_days
+    if as_of is not None:
+        params["as_of"] = as_of
+    key = json.dumps(params, sort_keys=True)
+    return JSONResponse(content=json.loads(_cached_embedding(key)))
+
+
 @app.get("/api/stock/{symbol}")
 def stock_detail(
     symbol: str,

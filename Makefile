@@ -6,11 +6,12 @@ API_PORT ?= 8077
 PY := backend/.venv/bin/python
 UVICORN := backend/.venv/bin/uvicorn
 
-.PHONY: help setup ingest validate test api web build serve dev
+.PHONY: help setup ingest sectors validate test api web build serve dev
 
 help:
 	@echo "setup     - create venv + install backend & frontend deps"
 	@echo "ingest    - backfill adjusted daily bars into DuckDB (LIMIT=600)"
+	@echo "sectors   - fetch company sector/industry from SEC EDGAR (no key)"
 	@echo "validate  - prove split adjustment is correct (AAPL/NVDA/TSLA/AMZN)"
 	@echo "test      - run backend pytest suite"
 	@echo "api       - run FastAPI on :$(API_PORT)"
@@ -24,6 +25,9 @@ setup:
 
 ingest:
 	cd backend && .venv/bin/python -m finance.ingest --limit $(or $(LIMIT),600)
+
+sectors:
+	cd backend && .venv/bin/python -m finance.sectors
 
 validate:
 	cd backend && .venv/bin/python -m finance.validate

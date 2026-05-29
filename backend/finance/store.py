@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS bars (
     volume  DOUBLE,
     PRIMARY KEY (symbol, date)
 );
+CREATE TABLE IF NOT EXISTS companies (
+    symbol    VARCHAR PRIMARY KEY,
+    name      VARCHAR,
+    sic       VARCHAR,
+    industry  VARCHAR,
+    sector    VARCHAR
+);
 """
 
 
@@ -101,6 +108,26 @@ class BarStore:
             "SELECT DISTINCT symbol FROM bars ORDER BY symbol"
         ).fetchall()
         return [r[0] for r in rows]
+
+    # ----- company metadata (sector/industry) -----
+
+    def upsert_company(
+        self, symbol: str, name: str, sic: str, industry: str, sector: str
+    ) -> None:
+        self.con.execute("DELETE FROM companies WHERE symbol = ?", [symbol])
+        self.con.execute(
+            "INSERT INTO companies VALUES (?, ?, ?, ?, ?)",
+            [symbol, name, sic, industry, sector],
+        )
+
+    def read_companies(self) -> pd.DataFrame:
+        return self.con.execute("SELECT * FROM companies").df()
+
+    def companies_with_sector(self) -> set[str]:
+        rows = self.con.execute(
+            "SELECT symbol FROM companies WHERE sector IS NOT NULL AND sector != ''"
+        ).fetchall()
+        return {r[0] for r in rows}
 
     def coverage(self) -> pd.DataFrame:
         """Per-symbol row count and date range — handy for sanity checks."""

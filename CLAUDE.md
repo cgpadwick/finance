@@ -16,7 +16,9 @@ Architecture target: `ingest (Alpaca, adjusted bars) → DuckDB store → moment
 - `finance/store.py` — `BarStore` (DuckDB at `data/finance.duckdb`). `upsert_bars` is DELETE-then-INSERT so re-pulling full history after a corporate action is idempotent and correctly re-adjusted.
 - `finance/universe.py` — fetches NASDAQ symbol directory over FTP (migrated from `src/get_nasdaq_symbols.py`).
 
-- `finance/momentum.py` — the engine: `compute_leaderboard()` reads the store, computes signals (12-1 mom, risk-adjusted mom, 52w-high proximity, frog-in-pan path quality), applies universe filters, cross-sectional z-scores → composite score → deciles. All driven by `AppConfig`.
+- `finance/momentum.py` — the engine: `compute_leaderboard()` reads the store, computes signals (12-1 mom, risk-adjusted mom, 52w-high proximity, frog-in-pan path quality), applies universe filters, cross-sectional z-scores → composite score → deciles, and left-joins company sector/industry. All driven by `AppConfig`.
+- `finance/sectors.py` — `python -m finance.sectors` fetches SIC code/industry from **SEC EDGAR** (free, no key, no daily cap) and maps SIC→broad sector; cached in the DuckDB `companies` table (resumable). `sic_to_sector()` is the pure mapping (specific overrides before broad ranges; e.g. SIC 3559/3827 → Technology for semi-equipment).
+- `finance/embedding.py` — `compute_embedding()` builds a 2D "map of the market": feature = each stock's trailing-1yr daily returns, distance = 1−correlation, reduced via **UMAP** (default; t-SNE/PCA optional), merged with the leaderboard for score/sector coloring. Lazy-imports umap (heavy/numba).
 - `api/main.py` — FastAPI. `/api/leaderboard` (accepts `min_price`/`min_dollar_volume`/`w_*` weights plus `lookback_days` (momentum window) and `as_of` (historical snapshot date) query overrides, cached per signature), `/api/stock/{symbol}`, `/api/config`, `/api/health`. In prod it also serves the built SPA from `frontend/dist` with an `index.html` catch-all for client-side routes.
 - `finance/ingest.py` — `python -m finance.ingest` backfills adjusted bars (batched via Alpaca multi-symbol). `--update` does an incremental ~400-day re-pull (re-adjusts recent corporate actions). `--limit N` bounds the universe (0 = all).
 - `finance/validate.py` — `python -m finance.validate` asserts split adjustment is correct against known splits. Run this whenever changing the data source.
@@ -26,7 +28,8 @@ Architecture target: `ingest (Alpaca, adjusted bars) → DuckDB store → moment
 
 - React 19 + Vite + TS, Tailwind v4 (`@tailwindcss/vite`), TanStack Query + Table, TradingView **Lightweight Charts v5** (note v5 API: `chart.addSeries(CandlestickSeries, {...})`, not `addCandlestickSeries`).
 - Dev: `npm run dev` (Vite on :5173) proxies `/api` → `:8077` (see `vite.config.ts`), so the SPA uses same-origin relative URLs in both dev and prod. Build: `npm run build` → `frontend/dist`.
-- Pages: `Leaderboard.tsx` (TanStack Table, winners/losers/all toggle, live `FilterPanel` tuning) and `StockDetail.tsx` (candlestick + MA overlays + signal stats).
+- Pages: `Leaderboard.tsx` (TanStack Table, winners/losers/all toggle, sector column + filter, lookback/as-of `AnalysisControls`, live `FilterPanel` tuning), `StockDetail.tsx` (candlestick + MA overlays + signal stats), and `MarketMap.tsx` (ECharts scatter of the UMAP embedding, color-by score/sector, click→detail; **lazy-loaded** so ECharts isn't in the main bundle).
+- DuckDB is single-writer: don't run `make ingest`/`make sectors` (writers) while `make api` (reader) is up, or the reader hits a lock error. Run writers offline, then serve.
 
 ### Commands
 

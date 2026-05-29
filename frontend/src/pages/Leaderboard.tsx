@@ -42,12 +42,20 @@ export function Leaderboard() {
   const emptyHistory =
     !isLoading && !isFetching && data?.count === 0 && !!overrides.as_of;
 
+  const [sector, setSector] = useState<string>("All");
+  const sectors = useMemo(() => {
+    const set = new Set<string>();
+    (data?.rows ?? []).forEach((r) => r.sector && set.add(r.sector));
+    return ["All", ...Array.from(set).sort()];
+  }, [data]);
+
   const rows = useMemo(() => {
-    const all = data?.rows ?? [];
-    if (view === "winners") return all.filter((r) => r.is_winner);
-    if (view === "losers") return all.filter((r) => r.is_loser);
+    let all = data?.rows ?? [];
+    if (view === "winners") all = all.filter((r) => r.is_winner);
+    else if (view === "losers") all = all.filter((r) => r.is_loser);
+    if (sector !== "All") all = all.filter((r) => r.sector === sector);
     return all;
-  }, [data, view]);
+  }, [data, view, sector]);
 
   const columns = useMemo(
     () => [
@@ -61,6 +69,14 @@ export function Leaderboard() {
           >
             {c.getValue()}
           </Link>
+        ),
+      }),
+      col.accessor("sector", {
+        header: "Sector",
+        cell: (c) => (
+          <span className="text-slate-300" title={c.row.original.industry ?? ""}>
+            {c.getValue() ?? "—"}
+          </span>
         ),
       }),
       col.accessor("last_close", {
@@ -133,6 +149,18 @@ export function Leaderboard() {
               minDate={dateRange?.[0]?.slice(0, 10)}
               maxDate={dateRange?.[1]?.slice(0, 10)}
             />
+            <select
+              value={sector}
+              onChange={(e) => setSector(e.target.value)}
+              className="rounded-lg border border-slate-800 bg-slate-900/60 px-2 py-1.5 text-xs text-slate-200"
+              title="Filter by sector"
+            >
+              {sectors.map((s) => (
+                <option key={s} value={s}>
+                  {s === "All" ? "All sectors" : s}
+                </option>
+              ))}
+            </select>
             <div className="flex gap-1 rounded-lg border border-slate-800 p-1">
               {(["winners", "losers", "all"] as View[]).map((v) => (
                 <button

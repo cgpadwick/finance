@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type {
+  EmbeddingResponse,
   FilterOverrides,
   LeaderboardResponse,
   StockDetail,
@@ -39,6 +40,14 @@ export function useStock(symbol: string | undefined) {
     queryKey: ["stock", symbol],
     queryFn: () => fetchJson<StockDetail>(`/api/stock/${symbol}?ma=20,50,200`),
     enabled: !!symbol,
+  });
+}
+
+export function useEmbedding(method: string) {
+  return useQuery({
+    queryKey: ["embedding", method],
+    queryFn: () =>
+      fetchJson<EmbeddingResponse>(`/api/embedding?method=${method}`),
   });
 }
 

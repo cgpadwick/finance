@@ -187,7 +187,18 @@ def compute_leaderboard(
             return eligible
         ranked = score(eligible, cfg)
         ranked["as_of"] = pd.to_datetime(close.index[t]).date().isoformat()
-        return ranked.reset_index()
+        out = ranked.reset_index()
+
+        # Attach sector/industry/company name if available (best-effort join).
+        companies = store.read_companies()
+        if not companies.empty:
+            out = out.merge(
+                companies[["symbol", "name", "industry", "sector"]],
+                on="symbol",
+                how="left",
+            )
+        out["sector"] = out.get("sector", pd.Series(index=out.index)).fillna("Unknown")
+        return out
     finally:
         if own_store:
             store.close()

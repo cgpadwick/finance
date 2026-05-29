@@ -19,6 +19,9 @@ export interface LeaderboardRow {
   is_winner: boolean;
   is_loser: boolean;
   as_of: string;
+  sector?: string;
+  industry?: string;
+  name?: string;
 }
 
 export interface LeaderboardResponse {
@@ -53,6 +56,24 @@ export interface StockDetail {
   bars: Bar[];
   moving_averages: Record<string, number[]>;
   signals: StockSignals | null;
+}
+
+export interface EmbeddingPoint {
+  symbol: string;
+  x: number;
+  y: number;
+  score: number;
+  sector?: string;
+  industry?: string;
+  name?: string;
+  is_winner: boolean;
+  is_loser: boolean;
+  last_close: number;
+}
+
+export interface EmbeddingResponse {
+  count: number;
+  points: EmbeddingPoint[];
 }
 
 export interface FilterOverrides {
