@@ -1,7 +1,18 @@
 import { Link, useParams } from "react-router-dom";
 import { useStock } from "../lib/api";
 import { CandleChart } from "../components/CandleChart";
+import { ResearchPanel } from "../components/ResearchPanel";
 import { compactMoney, money, num, pct, signColor } from "../lib/format";
+
+const LINKS = (s: string) => [
+  { label: "Yahoo", url: `https://finance.yahoo.com/quote/${s}` },
+  { label: "StockAnalysis", url: `https://stockanalysis.com/stocks/${s}/` },
+  { label: "Finviz", url: `https://finviz.com/quote.ashx?t=${s}` },
+  {
+    label: "SEC filings",
+    url: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&ticker=${s}&type=10-K`,
+  },
+];
 
 function Stat({
   label,
@@ -33,11 +44,14 @@ export function StockDetail() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-1 flex items-center gap-3">
         <Link to="/" className="text-sm text-sky-400 hover:text-sky-300">
           ← Leaderboard
         </Link>
         <h2 className="text-xl font-bold text-slate-100">{symbol}</h2>
+        {data?.company?.name && (
+          <span className="text-sm text-slate-400">{data.company.name}</span>
+        )}
         {data?.signals && (
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -49,6 +63,29 @@ export function StockDetail() {
             {data.signals.eligible ? "In universe" : "Filtered out"}
           </span>
         )}
+      </div>
+
+      {/* About row: sector/industry + outbound links */}
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+        {data?.company?.sector && (
+          <span className="rounded bg-slate-800 px-2 py-0.5 text-slate-300">
+            {data.company.sector}
+          </span>
+        )}
+        {data?.company?.industry && <span>{data.company.industry}</span>}
+        <span className="flex items-center gap-2">
+          {LINKS(symbol ?? "").map((l) => (
+            <a
+              key={l.label}
+              href={l.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sky-400 hover:text-sky-300"
+            >
+              {l.label} ↗
+            </a>
+          ))}
+        </span>
       </div>
 
       {error && (
@@ -102,6 +139,12 @@ export function StockDetail() {
             </span>
           </div>
           <CandleChart bars={data.bars} movingAverages={data.moving_averages} />
+        </div>
+      )}
+
+      {symbol && (
+        <div className="mt-5">
+          <ResearchPanel symbol={symbol} />
         </div>
       )}
     </div>

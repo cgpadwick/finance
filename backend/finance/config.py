@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     alpaca_api_key: str = ""
     alpaca_secret_key: str = ""
+    anthropic_api_key: str = ""
+    research_model: str = "claude-sonnet-4-6"
 
     model_config = SettingsConfigDict(
         env_file=str(REPO_ROOT / ".env"),
@@ -35,6 +37,10 @@ class Settings(BaseSettings):
     @property
     def alpaca_configured(self) -> bool:
         return bool(self.alpaca_api_key and self.alpaca_secret_key)
+
+    @property
+    def research_enabled(self) -> bool:
+        return bool(self.anthropic_api_key)
 
 
 # ----- tunable knobs (config.yaml) -----

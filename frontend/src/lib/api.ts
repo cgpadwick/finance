@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
   EmbeddingResponse,
   FilterOverrides,
   LeaderboardResponse,
+  ResearchResult,
   StockDetail,
 } from "../types";
 
@@ -40,6 +41,26 @@ export function useStock(symbol: string | undefined) {
     queryKey: ["stock", symbol],
     queryFn: () => fetchJson<StockDetail>(`/api/stock/${symbol}?ma=20,50,200`),
     enabled: !!symbol,
+  });
+}
+
+// Cached research report (no generation / no cost).
+export function useResearch(symbol: string | undefined) {
+  return useQuery({
+    queryKey: ["research", symbol],
+    queryFn: () => fetchJson<ResearchResult>(`/api/stock/${symbol}/research`),
+    enabled: !!symbol,
+  });
+}
+
+// Generate (or hand-off) a report on demand.
+export function useGenerateResearch(symbol: string | undefined) {
+  return useMutation({
+    mutationFn: async (): Promise<ResearchResult> => {
+      const res = await fetch(`/api/stock/${symbol}/research`, { method: "POST" });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    },
   });
 }
 

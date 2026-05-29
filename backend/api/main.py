@@ -223,10 +223,83 @@ def stock_detail(
         ohlc = bars[["date", "open", "high", "low", "close", "volume"]]
         return {
             "symbol": symbol,
+            "company": store.get_company(symbol),
             "bars": _clean_records(ohlc),
             "moving_averages": mas,
             "signals": signals,
         }
+    finally:
+        store.close()
+
+
+def _stock_context(store: BarStore, symbol: str) -> dict:
+    """Build the research context (company info + current signals) for a stock."""
+    company = store.get_company(symbol) or {}
+    ctx = {
+        "symbol": symbol,
+        "name": company.get("name"),
+        "sector": company.get("sector"),
+        "industry": company.get("industry"),
+    }
+    close_w, vol_w = _stock_wide(store)
+    if symbol in close_w.columns:
+        sig = compute_signals(close_w, vol_w, BASE_CONFIG, as_of_pos=-1)
+        if symbol in sig.index:
+            row = sig.loc[symbol].replace([np.inf, -np.inf], np.nan)
+            for k in ("last_close", "mom_12_1", "risk_adjusted_mom",
+                      "high_52w_proximity", "volatility"):
+                v = row.get(k)
+                ctx[k] = None if pd.isna(v) else float(v)
+        ctx["as_of"] = pd.to_datetime(close_w.index[-1]).date().isoformat()
+    return ctx
+
+
+@app.get("/api/research/config")
+def research_config():
+    from finance.config import get_settings
+
+    return {"enabled": get_settings().research_enabled}
+
+
+@app.get("/api/stock/{symbol}/research")
+def get_research(symbol: str):
+    """Return a cached report if one exists (no generation / no cost)."""
+    from finance.research import get_or_generate
+
+    symbol = symbol.upper()
+    store = _read_store()
+    try:
+        ctx = _stock_context(store, symbol)
+        return get_or_generate(ctx, store, generate=False)
+    finally:
+        store.close()
+
+
+@app.post("/api/stock/{symbol}/research")
+def make_research(symbol: str):
+    """Generate (and cache) a report if a key is configured; else return the
+    hand-off prompt. Generation needs a read-write store."""
+    from datetime import datetime
+
+    from finance.research import get_or_generate
+
+    from finance.config import get_settings
+
+    symbol = symbol.upper()
+    read_store = _read_store()
+    try:
+        ctx = _stock_context(read_store, symbol)
+        if not get_settings().research_enabled:
+            # No key: return the hand-off prompt without opening a writer.
+            return get_or_generate(ctx, read_store, generate=False)
+    finally:
+        read_store.close()
+    # Generation writes the cached report -> needs a read-write connection.
+    store = BarStore()
+    try:
+        return get_or_generate(
+            ctx, store, generate=True, now=datetime.now().isoformat(timespec="seconds")
+        )
     finally:
         store.close()
 

@@ -37,6 +37,13 @@ CREATE TABLE IF NOT EXISTS companies (
     industry  VARCHAR,
     sector    VARCHAR
 );
+CREATE TABLE IF NOT EXISTS research (
+    symbol       VARCHAR,
+    as_of        VARCHAR,
+    report       VARCHAR,
+    generated_at VARCHAR,
+    PRIMARY KEY (symbol, as_of)
+);
 """
 
 
@@ -122,6 +129,28 @@ class BarStore:
 
     def read_companies(self) -> pd.DataFrame:
         return self.con.execute("SELECT * FROM companies").df()
+
+    def get_company(self, symbol: str) -> dict | None:
+        df = self.con.execute(
+            "SELECT * FROM companies WHERE symbol = ?", [symbol]
+        ).df()
+        return df.iloc[0].to_dict() if len(df) else None
+
+    # ----- cached AI research reports -----
+
+    def get_research(self, symbol: str, as_of: str) -> dict | None:
+        df = self.con.execute(
+            "SELECT * FROM research WHERE symbol = ? AND as_of = ?", [symbol, as_of]
+        ).df()
+        return df.iloc[0].to_dict() if len(df) else None
+
+    def save_research(self, symbol: str, as_of: str, report: str, ts: str) -> None:
+        self.con.execute(
+            "DELETE FROM research WHERE symbol = ? AND as_of = ?", [symbol, as_of]
+        )
+        self.con.execute(
+            "INSERT INTO research VALUES (?, ?, ?, ?)", [symbol, as_of, report, ts]
+        )
 
     def companies_with_sector(self) -> set[str]:
         rows = self.con.execute(

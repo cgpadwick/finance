@@ -51,11 +51,28 @@ export interface StockSignals {
   eligible: boolean;
 }
 
+export interface Company {
+  symbol: string;
+  name?: string;
+  sic?: string;
+  industry?: string;
+  sector?: string;
+}
+
 export interface StockDetail {
   symbol: string;
+  company: Company | null;
   bars: Bar[];
   moving_averages: Record<string, number[]>;
   signals: StockSignals | null;
+}
+
+export interface ResearchResult {
+  mode: "cached" | "generated" | "handoff";
+  report?: string | null;
+  prompt?: string;
+  research_enabled?: boolean;
+  generated_at?: string;
 }
 
 export interface EmbeddingPoint {
