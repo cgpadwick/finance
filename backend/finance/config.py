@@ -51,6 +51,7 @@ class UniverseConfig(BaseModel):
     min_dollar_volume: float = 1_000_000.0
     dollar_volume_window: int = 20
     min_history_days: int = 252
+    exclude_etfs: bool = True  # drop ETFs/funds — momentum screener is for stocks
 
 
 class SignalWeights(BaseModel):

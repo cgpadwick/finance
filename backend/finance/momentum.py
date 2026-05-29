@@ -183,6 +183,12 @@ def compute_leaderboard(
 
         raw = compute_signals(close, volume, cfg, t)
         eligible = apply_universe_filters(raw, cfg)
+        if cfg.universe.exclude_etfs:
+            from finance.universe import load_etf_symbols
+
+            etfs = load_etf_symbols()
+            if etfs:
+                eligible = eligible[~eligible.index.isin(etfs)]
         if eligible.empty:
             return eligible
         ranked = score(eligible, cfg)

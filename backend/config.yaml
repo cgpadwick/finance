@@ -11,6 +11,7 @@ universe:
   min_dollar_volume: 1000000  # 20-day avg of close*volume
   dollar_volume_window: 20
   min_history_days: 252       # need a full year for 12-1 momentum + 52w high
+  exclude_etfs: true          # drop ETFs/funds (NASDAQ ETF flag) — stocks only
 
 momentum:
   skip_days: 21               # skip most recent ~month (short-term reversal)

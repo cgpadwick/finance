@@ -74,6 +74,19 @@ def fetch_symbols(exchanges: list[str] | None = None, save: bool = True) -> list
     return symbols
 
 
+def load_etf_symbols(path: Path | str = SYMBOLS_CSV) -> set[str]:
+    """Symbols flagged as ETFs in the NASDAQ listing (column ETF == 'Y')."""
+    path = Path(path)
+    if not path.exists():
+        return set()
+    df = pd.read_csv(path)
+    if "ETF" not in df.columns:
+        return set()
+    sym_col = "Symbol" if "Symbol" in df.columns else "ACT Symbol"
+    etfs = df.loc[df["ETF"] == "Y", sym_col].dropna().astype(str).str.strip()
+    return set(etfs.tolist())
+
+
 def load_cached_symbols(path: Path | str = SYMBOLS_CSV) -> list[str]:
     """Load symbols from the cached CSV (raises if not yet fetched)."""
     path = Path(path)
