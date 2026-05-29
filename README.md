@@ -1,84 +1,79 @@
-# finance
-a repo for finance analysis code
+# Momentum Screener
 
-## Environment setup
+A personal momentum-investing stock screener: it pulls **split/dividend-adjusted**
+daily prices from Alpaca, ranks a screened universe of stocks by a composite of
+academically-grounded momentum signals, and serves the results through a React
+dashboard (sortable leaderboard + per-stock candlestick charts).
 
-## Download Data and Generate a Dataframe
+> Replaces the old yfinance batch pipeline (still in `src/`, kept for reference).
 
-### Download The Data
+## Why it's built this way
 
-Download data from yfinance by running `download_ticker_data.py`.  
+- **Splits "just work."** All prices come from Alpaca with `Adjustment.ALL`
+  (split + dividend adjusted), so returns are computed from a clean adjusted
+  series. `finance/validate.py` proves it: AAPL's 4:1 split shows a normal
+  daily return, not a phantom −75% crash.
+- **No penny-stock junk.** The classic mistake is ranking by raw % return, which
+  rewards a $0.50→$1.00 noise spike. We fix it the right way: hard universe
+  filters (price, dollar-volume, history) **plus** risk-adjusting momentum by
+  volatility — not by abandoning percentage returns.
+- **Quality momentum.** The composite score blends four signals (weights in
+  `backend/config.yaml`, tunable live in the UI):
+  | Signal | What it captures |
+  |---|---|
+  | Risk-adjusted momentum | 12-1 return ÷ volatility (Sharpe-style; demotes junk) |
+  | 52-week-high proximity | how close to the trailing-year high (George–Hwang) |
+  | Path quality | steady trends vs. spiky ones (frog-in-the-pan) |
+  | 3–6 month momentum | shorter, confirming signal |
 
-```
-usage: download_ticker_data.py [-h] [--csv CSV] [--output OUTPUT] [--start START] [--end END] [--threads THREADS] [--delay DELAY]
-                               [--retries RETRIES] [--retry-delay RETRY_DELAY] [--subsample SUBSAMPLE] [--seed SEED]
+  Each is z-scored cross-sectionally, combined, and ranked into deciles
+  (top decile = winners, bottom = losers).
 
-Download historical stock data using yfinance.
-
-options:
-  -h, --help            show this help message and exit
-  --csv CSV             Path to the CSV file containing stock symbols (default: nasdaq_symbols.csv).
-  --output OUTPUT       Directory to save JSON files (default: stock_data_json).
-  --start START         Start date for historical data in YYYY-MM-DD format (default: 2020-01-01).
-  --end END             End date for historical data in YYYY-MM-DD format (default: 2023-01-01).
-  --threads THREADS     Number of parallel threads for downloading (default: 5).
-  --delay DELAY         Delay between downloads in seconds to prevent rate limiting (default: 0.1).
-  --retries RETRIES     Maximum number of retries for failed downloads (default: 3).
-  --retry-delay RETRY_DELAY
-                        Delay between retries in seconds (default: 5).
-  --subsample SUBSAMPLE
-                        Download data for subsample fraction of the symbols (0.0 to 1.0).
-  --seed SEED           seed passed to library random
-
-```
-
-
-For example:
+## Architecture
 
 ```
-cd src
-python download_ticker_data.py --csv ../data/nasdaq_symbols.csv --output ../data/stock_data_json/ --start 2020-01-01 --end 2025-01-03 --subsample 0.1
+Alpaca (adjusted bars) ─► DuckDB store ─► momentum engine ─► FastAPI ─► React SPA
+   datasources/            store.py        momentum.py       api/       frontend/
 ```
 
-This utility parses a list of symbols in a CSV file and downloads a json file per symbol and stores it in the location provided in the `--output` argument.  You must provide a start and an end date as well.  For quick tests you can utilize the `--subsample` parameter to download a specified fraction of the data.  After the command runs then there should be a set of json files, one per symbol, in the output directory.
+- **backend/** — Python (`uv`-managed). Ingest, storage, momentum engine, API.
+- **frontend/** — React + Vite + TS, Tailwind, TanStack Query/Table, TradingView
+  Lightweight Charts.
 
-Note that the utility will warn and show errors in `download.log`.  The errors **will not** appear on the console.
+## Setup
 
-### Create A Dataframe
+1. **Alpaca keys** (free): create paper-trading API keys at app.alpaca.markets,
+   then put them in a repo-root `.env` (gitignored — see `.env.example`):
+   ```
+   ALPACA_API_KEY=...
+   ALPACA_SECRET_KEY=...
+   ```
+2. **Install everything:**
+   ```
+   make setup            # backend venv + deps, frontend npm install
+   ```
 
-Next you can create a dataframe from the downloaded json files by running `create_dataframe.py`.
-
-```
-usage: create_dataframe.py [-h] [--directory DIRECTORY] [--ma_windows MA_WINDOWS [MA_WINDOWS ...]] [--drop_cols [DROP_COLS ...]]
-                           --outputpkl OUTPUTPKL
-
-Process JSON stock data by filling missing dates and computing moving averages.
-
-options:
-  -h, --help            show this help message and exit
-  --directory DIRECTORY
-                        Path to the directory containing JSON files.
-  --ma_windows MA_WINDOWS [MA_WINDOWS ...]
-                        List of integers specifying moving average windows.
-  --drop_cols [DROP_COLS ...]
-                        List of column names to drop from the final DataFrame.
-  --outputpkl OUTPUTPKL
-                        pathname to write out dataframe to (in pickle format)
+## Usage
 
 ```
+make validate           # prove split adjustment is correct
+make ingest             # backfill ~600 liquid symbols into DuckDB (LIMIT=N to change; 0=all)
+make test               # backend unit tests
 
-For example:
+# Dev (two servers, hot reload):
+make api                # FastAPI on :8077
+make web                # Vite dev server on :5173  (proxies /api -> :8077)
+#   open http://localhost:5173
 
+# Production-style (one server serves SPA + API):
+make serve              # builds frontend, serves everything on :8077
+#   open http://localhost:8077
 ```
-python create_dataframe.py --directory ../data/stock_data_json/ --outputpkl dataframe.pkl
-```
 
-This command will load each json file found in `../data/stock_data_json` into a dataframe, and will combine all the individual dataframes into a combined dataframe.  Some date filtering is implemented.  When we request data from yfinance, it gives us whatever it has,  even if it doesn't fill the requested time span provided when `download_ticker_data.py` was called.  As a result a bunch of the json files will have partial data stored in them that won't cover the dates we specified.  A min/max date filter is implemented such that any dataframe which doesn't cover the min/max time of all the dataframes is dropped.  This is a fairly harsh filter but it does guarantee that we will only use complete datasets. After the dataframes are filtered, the specified moving average columns are added to each dataframe.  Finally the combined dataframe is written out to the location specified by `--outputpkl`.
+> The API runs on **:8077** (port 8000 was occupied on the dev machine).
 
-### Plot Some Data
+## Tuning
 
-You can plot some data by running the notebook called `plot_stock_data.ipynb`.
-
-The stock data should look something like this:
-
-![Stock Data Plotted](res/plot_data.png "Stock Data Notebook")
+Edit `backend/config.yaml` for defaults (universe filters, signal weights,
+lookback/skip windows, rebalance), or adjust them live in the dashboard's
+"Tune the screen" panel — the API applies overrides per-request.

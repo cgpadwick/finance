@@ -1,0 +1,25 @@
+# Momentum screener configuration. Every knob here is tunable; the API exposes
+# these so the UI can experiment with filters and signal weights live.
+
+ingest:
+  start_date: "2018-01-01"   # backfill window start (>=2yr before earliest momentum date)
+  exchanges: ["NASDAQ"]       # universe.py symbol source(s)
+
+universe:
+  min_price: 5.0              # adjusted price floor — primary penny-stock filter
+  min_market_cap: 0           # 0 = disabled (Alpaca bars don't carry market cap; see Phase 2)
+  min_dollar_volume: 1000000  # 20-day avg of close*volume
+  dollar_volume_window: 20
+  min_history_days: 252       # need a full year for 12-1 momentum + 52w high
+
+momentum:
+  skip_days: 21               # skip most recent ~month (short-term reversal)
+  lookback_days: 252          # ~12 months
+  short_lookback_days: 126    # ~6 months, for the optional 3-6mo signal
+  winners_quantile: 0.10      # top/bottom decile = winners/losers
+  clip_z: 3.0                 # winsorize z-scores at +/- this
+  signals:                    # weights; set to 0 to disable a signal entirely
+    risk_adjusted_mom: 0.45
+    high_52w_proximity: 0.25
+    path_quality: 0.20
+    mom_3_6: 0.10
