@@ -151,8 +151,14 @@ def compute_leaderboard(
     store: BarStore | None = None,
     cfg: AppConfig | None = None,
     as_of_pos: int = -1,
+    as_of_date: str | None = None,
 ) -> pd.DataFrame:
-    """End-to-end: read store -> signals -> filters -> ranked leaderboard."""
+    """End-to-end: read store -> signals -> filters -> ranked leaderboard.
+
+    as_of_date (YYYY-MM-DD) selects a historical snapshot: the leaderboard is
+    computed as of the last trading day on/before that date. Returns an empty
+    frame if there isn't enough history before that date for the lookback.
+    """
     cfg = cfg or load_config()
     own_store = store is None
     store = store or BarStore()
@@ -160,12 +166,27 @@ def compute_leaderboard(
         close, volume = _wide(store)
         if close.empty:
             return pd.DataFrame()
-        raw = compute_signals(close, volume, cfg, as_of_pos)
+
+        # Resolve the as-of position.
+        if as_of_date:
+            target = pd.Timestamp(as_of_date)
+            valid = close.index[close.index <= target]
+            if len(valid) == 0:
+                return pd.DataFrame()
+            t = close.index.get_loc(valid[-1])
+        else:
+            t = as_of_pos if as_of_pos >= 0 else len(close) + as_of_pos
+
+        # Need a full lookback of history before t, else iloc would wrap.
+        if t < cfg.momentum.lookback_days:
+            return pd.DataFrame()
+
+        raw = compute_signals(close, volume, cfg, t)
         eligible = apply_universe_filters(raw, cfg)
         if eligible.empty:
             return eligible
         ranked = score(eligible, cfg)
-        ranked["as_of"] = pd.to_datetime(close.index[as_of_pos]).date().isoformat()
+        ranked["as_of"] = pd.to_datetime(close.index[t]).date().isoformat()
         return ranked.reset_index()
     finally:
         if own_store:

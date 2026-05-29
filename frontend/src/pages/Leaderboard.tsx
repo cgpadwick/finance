@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-table";
 import { useHealth, useLeaderboard } from "../lib/api";
 import { FilterPanel } from "../components/FilterPanel";
+import { AnalysisControls } from "../components/AnalysisControls";
 import type { FilterOverrides, LeaderboardRow } from "../types";
 import { compactMoney, money, num, pct, signColor } from "../lib/format";
 
@@ -26,6 +27,20 @@ export function Leaderboard() {
 
   const { data, isLoading, isFetching, error } = useLeaderboard(overrides);
   const health = useHealth();
+
+  const dateRange = health.data?.date_range;
+  const setLookback = (days: number) =>
+    setOverrides((o) => ({ ...o, lookback_days: days }));
+  const setAsOf = (date: string) =>
+    setOverrides((o) => {
+      const next = { ...o };
+      if (date) next.as_of = date;
+      else delete next.as_of;
+      return next;
+    });
+  // Empty result with an explicit as_of usually means not enough history yet.
+  const emptyHistory =
+    !isLoading && !isFetching && data?.count === 0 && !!overrides.as_of;
 
   const rows = useMemo(() => {
     const all = data?.rows ?? [];
@@ -109,26 +124,44 @@ export function Leaderboard() {
               )}
             </p>
           </div>
-          <div className="flex gap-1 rounded-lg border border-slate-800 p-1">
-            {(["winners", "losers", "all"] as View[]).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition ${
-                  view === v
-                    ? "bg-slate-700 text-slate-100"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-              >
-                {v}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-4">
+            <AnalysisControls
+              lookback={overrides.lookback_days ?? 252}
+              asOf={overrides.as_of ?? ""}
+              onLookback={setLookback}
+              onAsOf={setAsOf}
+              minDate={dateRange?.[0]?.slice(0, 10)}
+              maxDate={dateRange?.[1]?.slice(0, 10)}
+            />
+            <div className="flex gap-1 rounded-lg border border-slate-800 p-1">
+              {(["winners", "losers", "all"] as View[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition ${
+                    view === v
+                      ? "bg-slate-700 text-slate-100"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         {error && (
           <div className="rounded-lg border border-rose-900 bg-rose-950/40 p-4 text-sm text-rose-300">
             Failed to load: {String(error)}
+          </div>
+        )}
+
+        {emptyHistory && (
+          <div className="rounded-lg border border-amber-900 bg-amber-950/30 p-4 text-sm text-amber-300">
+            No ranking for {overrides.as_of} — there isn't enough price history
+            before that date for the selected window. Pick a later date or a
+            shorter window.
           </div>
         )}
 

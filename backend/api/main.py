@@ -55,14 +55,15 @@ def _clean_records(df: pd.DataFrame) -> list[dict]:
 # ----- leaderboard (cached per override signature) -----
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=64)
 def _cached_leaderboard(override_key: str) -> str:
     """Compute leaderboard for a config-override signature; cache the JSON."""
     overrides = json.loads(override_key)
+    as_of = overrides.get("as_of")  # not a config field; passed through
     cfg = _config_with_overrides(overrides)
     store = _read_store()
     try:
-        lb = compute_leaderboard(store, cfg)
+        lb = compute_leaderboard(store, cfg, as_of_date=as_of)
     finally:
         store.close()
     if lb.empty:
@@ -84,6 +85,11 @@ def _config_with_overrides(overrides: dict) -> AppConfig:
         u.min_dollar_volume = float(overrides["min_dollar_volume"])
     if "min_market_cap" in overrides:
         u.min_market_cap = float(overrides["min_market_cap"])
+    if "lookback_days" in overrides:
+        lb = int(overrides["lookback_days"])
+        m.lookback_days = lb
+        # Keep the secondary (shorter) signal coherent with the main window.
+        m.short_lookback_days = max(lb // 2, m.skip_days + 5)
     for sig in ("risk_adjusted_mom", "high_52w_proximity", "path_quality", "mom_3_6"):
         key = f"w_{sig}"
         if key in overrides:
@@ -124,6 +130,8 @@ def leaderboard(
     w_high_52w_proximity: float | None = Query(None),
     w_path_quality: float | None = Query(None),
     w_mom_3_6: float | None = Query(None),
+    lookback_days: int | None = Query(None, description="Momentum window (trading days)."),
+    as_of: str | None = Query(None, description="Snapshot date YYYY-MM-DD (default latest)."),
 ):
     overrides = {
         k: v
@@ -135,6 +143,8 @@ def leaderboard(
             "w_high_52w_proximity": w_high_52w_proximity,
             "w_path_quality": w_path_quality,
             "w_mom_3_6": w_mom_3_6,
+            "lookback_days": lookback_days,
+            "as_of": as_of,
         }.items()
         if v is not None
     }

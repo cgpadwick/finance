@@ -17,7 +17,7 @@ Architecture target: `ingest (Alpaca, adjusted bars) → DuckDB store → moment
 - `finance/universe.py` — fetches NASDAQ symbol directory over FTP (migrated from `src/get_nasdaq_symbols.py`).
 
 - `finance/momentum.py` — the engine: `compute_leaderboard()` reads the store, computes signals (12-1 mom, risk-adjusted mom, 52w-high proximity, frog-in-pan path quality), applies universe filters, cross-sectional z-scores → composite score → deciles. All driven by `AppConfig`.
-- `api/main.py` — FastAPI. `/api/leaderboard` (accepts `min_price`/`min_dollar_volume`/`w_*` query overrides, cached per signature), `/api/stock/{symbol}`, `/api/config`, `/api/health`. In prod it also serves the built SPA from `frontend/dist` with an `index.html` catch-all for client-side routes.
+- `api/main.py` — FastAPI. `/api/leaderboard` (accepts `min_price`/`min_dollar_volume`/`w_*` weights plus `lookback_days` (momentum window) and `as_of` (historical snapshot date) query overrides, cached per signature), `/api/stock/{symbol}`, `/api/config`, `/api/health`. In prod it also serves the built SPA from `frontend/dist` with an `index.html` catch-all for client-side routes.
 - `finance/ingest.py` — `python -m finance.ingest` backfills adjusted bars (batched via Alpaca multi-symbol). `--update` does an incremental ~400-day re-pull (re-adjusts recent corporate actions). `--limit N` bounds the universe (0 = all).
 - `finance/validate.py` — `python -m finance.validate` asserts split adjustment is correct against known splits. Run this whenever changing the data source.
 - Tests: `cd backend && .venv/bin/python -m pytest`.

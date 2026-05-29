@@ -26,8 +26,8 @@ export function FilterPanel({ value, onChange, onReset }: Props) {
   const set = (key: keyof FilterOverrides, v: number) =>
     onChange({ ...value, [key]: v });
 
-  const get = (key: keyof FilterOverrides) =>
-    value[key] ?? DEFAULTS[key] ?? 0;
+  const get = (key: keyof FilterOverrides): number =>
+    Number(value[key] ?? DEFAULTS[key] ?? 0);
 
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">

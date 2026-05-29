@@ -62,4 +62,6 @@ export interface FilterOverrides {
   w_high_52w_proximity?: number;
   w_path_quality?: number;
   w_mom_3_6?: number;
+  lookback_days?: number;
+  as_of?: string;
 }
