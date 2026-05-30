@@ -428,15 +428,31 @@ def _cohort_rows(view: str, n: int) -> tuple[list[dict], str]:
     return rows, as_of
 
 
+def _cohort_aggregate(rows: list[dict], store: BarStore) -> tuple[dict, str]:
+    """Aggregate computed technicals across the cohort's symbols."""
+    from finance.technicals import aggregate_cohort, analyze_stock, cohort_summary_text
+
+    syms = [r["symbol"] for r in rows]
+    bars = store.read_bars(syms)
+    analyses = []
+    if not bars.empty:
+        for _, g in bars.groupby("symbol"):
+            analyses.append(analyze_stock(g))
+    agg = aggregate_cohort(analyses)
+    return agg, cohort_summary_text(agg)
+
+
 @app.get("/api/research/cohort")
 def get_cohort(view: str = Query("winners")):
-    """Cached cohort briefing only (no generation)."""
+    """Cached cohort briefing + computed cohort technicals (no generation)."""
     from finance.research import get_or_generate_cohort
 
     store = _read_store()
     try:
         rows, as_of = _cohort_rows(view, 10)
-        return get_or_generate_cohort(view, rows, as_of, store, generate=False)
+        agg, _ = _cohort_aggregate(rows, store) if rows else ({}, "")
+        res = get_or_generate_cohort(view, rows, as_of, store, generate=False)
+        return {**res, "aggregate": agg}
     finally:
         store.close()
 
@@ -454,17 +470,21 @@ def make_cohort(
     rows, as_of = _cohort_rows(view, n)
     if not rows:
         return {"mode": "handoff", "report": None, "prompt": "", "research_enabled": False}
-    if not get_settings().research_enabled:
-        store = _read_store()
-        try:
-            return get_or_generate_cohort(view, rows, as_of, store, generate=False)
-        finally:
-            store.close()
+    read_store = _read_store()
+    try:
+        agg, tech_text = _cohort_aggregate(rows, read_store)
+        if not get_settings().research_enabled:
+            res = get_or_generate_cohort(view, rows, as_of, read_store, generate=False)
+            return {**res, "aggregate": agg}
+    finally:
+        read_store.close()
     store = BarStore()
     try:
-        return get_or_generate_cohort(
-            view, rows, as_of, store, generate=True, now=_now(), force=force, model=model
+        res = get_or_generate_cohort(
+            view, rows, as_of, store, generate=True, now=_now(), force=force,
+            model=model, tech_text=tech_text,
         )
+        return {**res, "aggregate": agg}
     finally:
         store.close()
 

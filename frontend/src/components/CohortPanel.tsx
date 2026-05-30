@@ -1,7 +1,29 @@
 import ReactMarkdown from "react-markdown";
 import { useCohort, useGenerateCohort } from "../lib/api";
-import type { ResearchResult } from "../types";
+import type { CohortAggregate, ResearchResult } from "../types";
 import { ReportMeta } from "./ResearchPanel";
+import { num, pct } from "../lib/format";
+
+function AggregateStats({ a }: { a: CohortAggregate }) {
+  const cells: [string, string][] = [
+    ["Above 200d MA", pct(a.pct_above_200ma, 0)],
+    ["Golden cross", pct(a.pct_golden_cross, 0)],
+    ["Bullish verdict", pct(a.pct_bullish_verdict, 0)],
+    ["Avg RSI", num(a.avg_rsi, 0)],
+    ["Avg 6m", pct(a.avg_6m_return, 0)],
+    ["Avg max DD", pct(a.avg_max_drawdown, 0)],
+  ];
+  return (
+    <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+      {cells.map(([label, value]) => (
+        <div key={label} className="rounded-lg border border-slate-800 bg-slate-900/50 p-2">
+          <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+          <div className="text-sm font-semibold tabular-nums text-slate-200">{value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Theme-level "why is this cohort moving" briefing for the current winners/losers.
 export function CohortPanel({ view }: { view: "winners" | "losers" }) {
@@ -33,6 +55,10 @@ export function CohortPanel({ view }: { view: "winners" | "losers" }) {
 
       {gen.isError && (
         <div className="mb-2 text-xs text-rose-400">{String(gen.error)}</div>
+      )}
+
+      {result?.aggregate && result.aggregate.n > 0 && (
+        <AggregateStats a={result.aggregate} />
       )}
 
       {report ? (

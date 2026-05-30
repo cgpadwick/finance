@@ -144,7 +144,9 @@ COHORT_SYSTEM = (
 )
 
 
-def build_cohort_prompt(view: str, rows: list[dict], as_of: str) -> str:
+def build_cohort_prompt(
+    view: str, rows: list[dict], as_of: str, tech_text: str = ""
+) -> str:
     lines = []
     for r in rows:
         mom = r.get("mom_12_1")
@@ -157,8 +159,11 @@ def build_cohort_prompt(view: str, rows: list[dict], as_of: str) -> str:
     return (
         f"These are the current momentum {view} from a stock screener "
         f"(as of {as_of}):\n\n{body}\n\n"
-        "Explain what themes connect them and why this group is moving now. "
-        "Treat any implausibly large momentum figures as dataset quirks."
+        + (f"{tech_text}\n\n" if tech_text else "")
+        + "Explain what themes connect them and why this group is moving now, "
+        "citing the computed cohort technicals above where relevant (do not "
+        "invent numbers). Treat any implausibly large momentum figures as "
+        "dataset quirks."
     )
 
 
@@ -172,6 +177,7 @@ def get_or_generate_cohort(
     now: str = "",
     force: bool = False,
     model: str | None = None,
+    tech_text: str = "",
 ) -> dict:
     """Cohort-level briefing, cached under a synthetic symbol key."""
     settings = settings or get_settings()
@@ -182,7 +188,7 @@ def get_or_generate_cohort(
         if cached:
             return _cached_result(cached)
 
-    prompt = build_cohort_prompt(view, rows, as_of)
+    prompt = build_cohort_prompt(view, rows, as_of, tech_text)
 
     if generate and settings.research_enabled:
         from finance.llm import complete_with_usage

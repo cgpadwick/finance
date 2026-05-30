@@ -179,6 +179,54 @@ def analyze_stock(df: pd.DataFrame) -> dict:
     }
 
 
+def aggregate_cohort(analyses: list[dict]) -> dict:
+    """Roll up per-stock technicals across a cohort into shared stats."""
+    valid = [a for a in analyses if not a.get("insufficient_data")]
+    if not valid:
+        return {}
+
+    def mean(vals):
+        vals = [v for v in vals if v is not None]
+        return _safe(sum(vals) / len(vals)) if vals else None
+
+    n = len(valid)
+    above200 = sum(1 for a in valid if a["trend"]["above_ma200"])
+    golden = sum(1 for a in valid if a["trend"]["golden_cross"])
+    overbought = sum(1 for a in valid if (a["momentum"]["rsi"] or 0) >= 70)
+    bullish = sum(1 for a in valid if a["verdict"]["label"] == "Bullish")
+    return {
+        "n": n,
+        "pct_above_200ma": _safe(above200 / n),
+        "pct_golden_cross": _safe(golden / n),
+        "n_overbought": overbought,
+        "pct_bullish_verdict": _safe(bullish / n),
+        "avg_rsi": mean([a["momentum"]["rsi"] for a in valid]),
+        "avg_6m_return": mean([a["returns"]["r_6m"] for a in valid]),
+        "avg_12m_return": mean([a["returns"]["r_12m"] for a in valid]),
+        "avg_max_drawdown": mean([a["volatility"]["max_drawdown"] for a in valid]),
+        "avg_ann_vol": mean([a["volatility"]["ann_vol"] for a in valid]),
+    }
+
+
+def cohort_summary_text(agg: dict) -> str:
+    if not agg:
+        return ""
+
+    def p(x):
+        return "n/a" if x is None else f"{x * 100:.0f}%"
+
+    return (
+        f"COMPUTED COHORT TECHNICALS across {agg['n']} names (use these real figures):\n"
+        f"- {p(agg['pct_above_200ma'])} trade above their 200-day MA; "
+        f"{p(agg['pct_golden_cross'])} in a golden-cross regime\n"
+        f"- {p(agg['pct_bullish_verdict'])} have a bullish technical verdict; "
+        f"{agg['n_overbought']} are overbought (RSI>=70)\n"
+        f"- Avg RSI {agg['avg_rsi']}; avg 6m return {p(agg['avg_6m_return'])}, "
+        f"12m {p(agg['avg_12m_return'])}; avg max drawdown {p(agg['avg_max_drawdown'])}; "
+        f"avg annualized vol {p(agg['avg_ann_vol'])}"
+    )
+
+
 def technicals_summary_text(t: dict) -> str:
     """Compact, LLM-ready text of the COMPUTED metrics (so the model cites real
     numbers instead of inventing them)."""

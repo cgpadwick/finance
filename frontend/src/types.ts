@@ -67,6 +67,19 @@ export interface StockDetail {
   signals: StockSignals | null;
 }
 
+export interface CohortAggregate {
+  n: number;
+  pct_above_200ma: number | null;
+  pct_golden_cross: number | null;
+  n_overbought: number;
+  pct_bullish_verdict: number | null;
+  avg_rsi: number | null;
+  avg_6m_return: number | null;
+  avg_12m_return: number | null;
+  avg_max_drawdown: number | null;
+  avg_ann_vol: number | null;
+}
+
 export interface ResearchResult {
   mode: "cached" | "generated" | "handoff";
   report?: string | null;
@@ -76,6 +89,7 @@ export interface ResearchResult {
   model?: string | null;
   cost?: number | null;
   tokens?: number | null;
+  aggregate?: CohortAggregate;
 }
 
 export interface ResearchConfig {
