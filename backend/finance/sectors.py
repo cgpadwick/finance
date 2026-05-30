@@ -100,6 +100,67 @@ def sic_to_sector(sic: str | int | None) -> str:
     return "Other"
 
 
+# Fallback when SEC returns no SIC (common for BDCs, closed-end funds, banks):
+# classify from the company name. Keywords are checked in order.
+_NAME_SECTOR_HINTS: list[tuple[str, tuple[str, ...]]] = [
+    (
+        "Financials",
+        (
+            "capital", "financ", "lending", "bancorp", "bancshares", "bank",
+            "savings", "mortgage", "investment", "fund", "bdc", "insurance",
+            "asset manage", " trust", "holdings corp", "ventures",
+        ),
+    ),
+    ("Real Estate", ("realty", "real estate", "reit", "properties", "property trust")),
+    ("Energy", ("petroleum", "energy", "oil ", "gas ", "midstream")),
+]
+
+
+def name_to_sector(name: str) -> str:
+    """Best-effort sector from a company/security name (used only when SIC is
+    missing). Returns 'Unknown' if nothing matches."""
+    n = (name or "").lower()
+    for sector, kws in _NAME_SECTOR_HINTS:
+        if any(k in n for k in kws):
+            return sector
+    return "Unknown"
+
+
+def reclassify_unknowns() -> dict[str, int]:
+    """Re-label cached 'Unknown' sectors via name heuristics (no SEC calls).
+
+    Uses the company name if present, else the NASDAQ listing's security name."""
+    import pandas as pd
+
+    from finance.universe import SYMBOLS_CSV
+
+    sec_names = {}
+    if SYMBOLS_CSV.exists():
+        df = pd.read_csv(SYMBOLS_CSV)
+        sym_col = "Symbol" if "Symbol" in df.columns else "ACT Symbol"
+        name_col = "Security Name" if "Security Name" in df.columns else None
+        if name_col:
+            sec_names = dict(zip(df[sym_col].astype(str).str.strip(), df[name_col]))
+
+    store = BarStore()
+    try:
+        comp = store.read_companies()
+        unknown = comp[comp["sector"].fillna("Unknown") == "Unknown"]
+        fixed: dict[str, int] = {}
+        for _, row in unknown.iterrows():
+            sym = row["symbol"]
+            name = row.get("name") or sec_names.get(sym, "")
+            sector = name_to_sector(name)
+            if sector != "Unknown":
+                store.upsert_company(
+                    sym, name, row.get("sic") or "", row.get("industry") or "", sector
+                )
+                fixed[sector] = fixed.get(sector, 0) + 1
+        return fixed
+    finally:
+        store.close()
+
+
 def load_ticker_cik_map() -> dict[str, dict]:
     resp = requests.get(TICKERS_URL, headers=HEADERS, timeout=30)
     resp.raise_for_status()
@@ -139,6 +200,8 @@ def run(symbols: list[str], delay: float = 0.12, resume: bool = True) -> dict[st
             try:
                 name, sic, industry = fetch_one(sym, info["cik"])
                 sector = sic_to_sector(sic)
+                if sector == "Unknown":  # SEC had no SIC — fall back to the name
+                    sector = name_to_sector(name or info["name"])
                 store.upsert_company(sym, name or info["name"], sic, industry, sector)
                 counts[sector] = counts.get(sector, 0) + 1
             except Exception as e:  # noqa: BLE001 - best-effort, keep going

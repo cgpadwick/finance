@@ -87,6 +87,19 @@ def load_etf_symbols(path: Path | str = SYMBOLS_CSV) -> set[str]:
     return set(etfs.tolist())
 
 
+def load_excluded_symbols(path: Path | str = SYMBOLS_CSV) -> set[str]:
+    """Non-stock symbols to drop from the screener: ETFs + NASDAQ test issues."""
+    path = Path(path)
+    excluded = set(load_etf_symbols(path))
+    if path.exists():
+        df = pd.read_csv(path)
+        sym_col = "Symbol" if "Symbol" in df.columns else "ACT Symbol"
+        if "Test Issue" in df.columns:
+            tests = df.loc[df["Test Issue"] == "Y", sym_col].dropna().astype(str).str.strip()
+            excluded |= set(tests.tolist())
+    return excluded
+
+
 def load_cached_symbols(path: Path | str = SYMBOLS_CSV) -> list[str]:
     """Load symbols from the cached CSV (raises if not yet fetched)."""
     path = Path(path)
