@@ -4,6 +4,7 @@ import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
@@ -22,6 +23,7 @@ type View = "winners" | "losers" | "all";
 export function Leaderboard() {
   const [overrides, setOverrides] = useState<FilterOverrides>({});
   const [view, setView] = useState<View>("winners");
+  const [showInsights, setShowInsights] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "score", desc: true },
   ]);
@@ -123,6 +125,8 @@ export function Leaderboard() {
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 50 } },
   });
 
   return (
@@ -177,6 +181,15 @@ export function Leaderboard() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => setShowInsights((s) => !s)}
+              className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-1.5 text-xs font-semibold text-white shadow hover:from-violet-500 hover:to-fuchsia-500"
+            >
+              ✨ Deep Insights
+              <span className="rounded bg-white/20 px-1 text-[9px] font-bold tracking-wide">
+                PRO
+              </span>
+            </button>
           </div>
         </div>
 
@@ -191,6 +204,12 @@ export function Leaderboard() {
             No ranking for {overrides.as_of} — there isn't enough price history
             before that date for the selected window. Pick a later date or a
             shorter window.
+          </div>
+        )}
+
+        {showInsights && (
+          <div className="mb-4">
+            <CohortPanel view={view === "losers" ? "losers" : "winners"} />
           </div>
         )}
 
@@ -239,8 +258,50 @@ export function Leaderboard() {
           </table>
         </div>
 
-        <div className="mt-6">
-          <CohortPanel view={view === "losers" ? "losers" : "winners"} />
+        {/* pagination controls */}
+        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+          <span>
+            {rows.length.toLocaleString()} {view} ·{" "}
+            {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
+            –
+            {Math.min(
+              (table.getState().pagination.pageIndex + 1) *
+                table.getState().pagination.pageSize,
+              rows.length,
+            )}{" "}
+            shown
+          </span>
+          <div className="flex items-center gap-2">
+            <select
+              value={table.getState().pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className="rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1 text-slate-200"
+            >
+              {[25, 50, 100, 200].map((n) => (
+                <option key={n} value={n}>
+                  {n}/page
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="rounded-md border border-slate-700 px-2 py-1 hover:bg-slate-800 disabled:opacity-40"
+            >
+              ← Prev
+            </button>
+            <span>
+              Page {table.getState().pagination.pageIndex + 1} of{" "}
+              {table.getPageCount() || 1}
+            </span>
+            <button
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="rounded-md border border-slate-700 px-2 py-1 hover:bg-slate-800 disabled:opacity-40"
+            >
+              Next →
+            </button>
+          </div>
         </div>
       </div>
 
