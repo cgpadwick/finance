@@ -3,6 +3,7 @@ import type {
   EmbeddingResponse,
   FilterOverrides,
   LeaderboardResponse,
+  PanelResult,
   ResearchConfig,
   ResearchResult,
   SectorsResponse,
@@ -44,6 +45,28 @@ export function useStock(symbol: string | undefined) {
     queryKey: ["stock", symbol],
     queryFn: () => fetchJson<StockDetail>(`/api/stock/${symbol}?ma=20,50,200`),
     enabled: !!symbol,
+  });
+}
+
+// Bull/bear/facts analyst panel.
+export function usePanel(symbol: string | undefined) {
+  return useQuery({
+    queryKey: ["panel", symbol],
+    queryFn: () => fetchJson<PanelResult>(`/api/stock/${symbol}/panel`),
+    enabled: !!symbol,
+  });
+}
+
+export function useGeneratePanel(symbol: string | undefined) {
+  return useMutation({
+    mutationFn: async (opts: { model?: string; force?: boolean } = {}): Promise<PanelResult> => {
+      const p = new URLSearchParams();
+      if (opts.model) p.set("model", opts.model);
+      if (opts.force) p.set("force", "true");
+      const res = await fetch(`/api/stock/${symbol}/panel?${p}`, { method: "POST" });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    },
   });
 }
 

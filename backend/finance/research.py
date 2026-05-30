@@ -31,16 +31,15 @@ SYSTEM = (
 )
 
 
-def build_prompt(ctx: dict) -> str:
-    """Human-readable prompt embedding the screener's quantitative context."""
+def build_context_block(ctx: dict) -> str:
+    """The shared, grounded context (company + screener + computed technicals)."""
 
     def pct(x):
         return f"{x * 100:.0f}%" if isinstance(x, (int, float)) else "n/a"
 
     return (
-        f"Research the US-listed company {ctx.get('name') or ctx['symbol']} "
-        f"(ticker {ctx['symbol']}).\n\n"
-        f"It appears on a momentum screener with this context (as of {ctx.get('as_of')}):\n"
+        f"Company: {ctx.get('name') or ctx['symbol']} (ticker {ctx['symbol']}).\n"
+        f"Screener context (as of {ctx.get('as_of')}):\n"
         f"- Sector / industry: {ctx.get('sector', 'n/a')} / {ctx.get('industry', 'n/a')}\n"
         f"- Recent price: ${ctx.get('last_close', 'n/a')}\n"
         f"- 12-1 momentum: {pct(ctx.get('mom_12_1'))}\n"
@@ -48,13 +47,117 @@ def build_prompt(ctx: dict) -> str:
         f"- Proximity to 52-week high: {pct(ctx.get('high_52w_proximity'))}\n"
         f"- Annualized volatility: {pct(ctx.get('volatility'))}\n\n"
         + (f"{ctx['technicals_text']}\n\n" if ctx.get("technicals_text") else "")
-        + "Write the report. Explain what the company does and the most plausible "
+    )
+
+
+def build_prompt(ctx: dict) -> str:
+    """Single-report prompt (the original 'fact-based' note)."""
+    return build_context_block(ctx) + (
+        "Write the report. Explain what the company does and the most plausible "
         "reasons it has strong (or weak) price momentum right now, grounded in "
         "recent, real developments AND the computed technicals above (cite the "
-        "real figures — RSI, trend, drawdown, returns — do not invent numbers). "
-        "If a momentum figure looks implausibly large, treat it as a dataset "
-        "quirk and focus on the real company."
+        "real figures — do not invent numbers). If a momentum figure looks "
+        "implausibly large, treat it as a dataset quirk and focus on the real company."
     )
+
+
+# --------- bull / bear / facts analyst panel ---------
+
+_PANEL_COMMON = (
+    " Use web search for recent, real developments. Write for a non-expert and "
+    "explain any technical term in plain English. Ground every claim in the "
+    "computed figures above — never invent numbers. ~150-220 words, markdown."
+)
+PANEL_PERSONAS = {
+    "facts": (
+        "You are a strictly NEUTRAL research analyst. State only the facts: what "
+        "the company does, its business/market, and what the computed technicals "
+        "show — in plain language, with NO opinion, recommendation, or bull/bear "
+        "spin." + _PANEL_COMMON
+    ),
+    "bull": (
+        "You are a BULLISH analyst making the BULL CASE — the strongest honest "
+        "argument FOR owning this stock: momentum, catalysts, technical strength, "
+        "the opportunity. Be persuasive but factual." + _PANEL_COMMON
+    ),
+    "bear": (
+        "You are a SKEPTICAL analyst making the BEAR CASE — the strongest honest "
+        "argument for CAUTION: overbought conditions, drawdown/volatility risk, "
+        "what could break the trend, competition/valuation concerns." + _PANEL_COMMON
+    ),
+}
+
+
+def generate_panel(ctx: dict, settings: Settings, model_override: str | None = None) -> dict:
+    """Run the three analysts concurrently, all grounded in the same context."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from finance.llm import complete_with_usage
+
+    model = _resolve_model(settings, model_override)
+    context = build_context_block(ctx)
+
+    def run(persona_system: str) -> dict:
+        return complete_with_usage(
+            [
+                {"role": "system", "content": persona_system},
+                {"role": "user", "content": context + "Write only your assigned section."},
+            ],
+            model=model,
+            settings=settings,
+        )
+
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futures = {k: ex.submit(run, sysp) for k, sysp in PANEL_PERSONAS.items()}
+        res = {k: f.result() for k, f in futures.items()}
+
+    return {
+        "facts": res["facts"]["text"],
+        "bull": res["bull"]["text"],
+        "bear": res["bear"]["text"],
+        "model": res["facts"]["model"],
+        "cost": round(sum((res[k]["cost"] or 0) for k in res), 6),
+        "tokens": sum((res[k]["tokens"] or 0) for k in res),
+    }
+
+
+def get_or_generate_panel(
+    ctx: dict,
+    store: BarStore,
+    generate: bool = False,
+    settings: Settings | None = None,
+    now: str = "",
+    force: bool = False,
+    model: str | None = None,
+) -> dict:
+    """Bull/bear/facts panel for a stock, cached as JSON under '<as_of>|panel'."""
+    import json
+
+    settings = settings or get_settings()
+    symbol = ctx["symbol"]
+    key = f"{ctx.get('as_of') or 'latest'}|panel"
+
+    if not force:
+        cached = store.get_research(symbol, key)
+        if cached:
+            parts = json.loads(cached["report"])
+            return {"mode": "cached", **parts, "generated_at": cached.get("generated_at"),
+                    "model": cached.get("model"), "cost": cached.get("cost"),
+                    "tokens": cached.get("tokens")}
+
+    if generate and settings.research_enabled:
+        panel = generate_panel(ctx, settings, model_override=model)
+        store.save_research(
+            symbol, key, json.dumps({k: panel[k] for k in ("facts", "bull", "bear")}),
+            now, panel["model"], panel["cost"], panel["tokens"],
+        )
+        return {"mode": "generated", "generated_at": now, **panel}
+
+    return {
+        "mode": "handoff",
+        "prompt": build_prompt(ctx),
+        "research_enabled": settings.research_enabled,
+    }
 
 
 def _resolve_model(settings: Settings, model_override: str | None) -> str:

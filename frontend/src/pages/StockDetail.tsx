@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { useStock } from "../lib/api";
 import { CandleChart } from "../components/CandleChart";
-import { ResearchPanel } from "../components/ResearchPanel";
+import { DebatePanel } from "../components/DebatePanel";
 import { TechnicalsReport } from "../components/TechnicalsReport";
 import { compactMoney, money, num, pct, signColor } from "../lib/format";
 
@@ -155,7 +155,7 @@ export function StockDetail() {
           </div>
           <TechnicalsReport symbol={symbol} />
           <div className="mt-4 border-t border-slate-800 pt-4">
-            <ResearchPanel symbol={symbol} />
+            <DebatePanel symbol={symbol} />
           </div>
         </div>
       )}

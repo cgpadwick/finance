@@ -411,6 +411,51 @@ def make_research(
         store.close()
 
 
+@app.get("/api/stock/{symbol}/panel")
+def get_panel(symbol: str):
+    """Cached bull/bear/facts analyst panel (no generation)."""
+    from finance.research import get_or_generate_panel
+
+    symbol = symbol.upper()
+    store = _read_store()
+    try:
+        ctx = _stock_context(store, symbol)
+        return get_or_generate_panel(ctx, store, generate=False)
+    finally:
+        store.close()
+
+
+@app.post("/api/stock/{symbol}/panel")
+def make_panel(
+    symbol: str,
+    model: str | None = Query(None),
+    force: bool = Query(False),
+):
+    """Generate the 3-analyst panel (facts/bull/bear), grounded in technicals."""
+    from finance.config import get_settings
+    from finance.research import get_or_generate_panel
+    from finance.technicals import analyze_stock, technicals_summary_text
+
+    symbol = symbol.upper()
+    read_store = _read_store()
+    try:
+        ctx = _stock_context(read_store, symbol)
+        bars = read_store.read_bars([symbol])
+        if not bars.empty:
+            ctx["technicals_text"] = technicals_summary_text(analyze_stock(bars))
+        if not get_settings().research_enabled:
+            return get_or_generate_panel(ctx, read_store, generate=False)
+    finally:
+        read_store.close()
+    store = BarStore()
+    try:
+        return get_or_generate_panel(
+            ctx, store, generate=True, now=_now(), force=force, model=model
+        )
+    finally:
+        store.close()
+
+
 def _cohort_rows(
     view: str, n: int, sector: str | None = None
 ) -> tuple[list[dict], str, str, str]:

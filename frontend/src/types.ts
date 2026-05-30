@@ -92,6 +92,19 @@ export interface ResearchResult {
   aggregate?: CohortAggregate;
 }
 
+export interface PanelResult {
+  mode: "cached" | "generated" | "handoff";
+  facts?: string;
+  bull?: string;
+  bear?: string;
+  prompt?: string;
+  research_enabled?: boolean;
+  generated_at?: string;
+  model?: string | null;
+  cost?: number | null;
+  tokens?: number | null;
+}
+
 export interface ResearchConfig {
   enabled: boolean;
   model: string;
