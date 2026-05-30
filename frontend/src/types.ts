@@ -120,6 +120,74 @@ export interface SectorsResponse {
   sectors: SectorRow[];
 }
 
+export interface ScorecardItem {
+  label: string;
+  signal: "bullish" | "bearish" | "neutral";
+  detail: string;
+}
+
+export interface Technicals {
+  insufficient_data?: boolean;
+  bars: number;
+  price: number;
+  trend: {
+    ma50: number | null;
+    ma200: number | null;
+    above_ma50: boolean;
+    above_ma200: boolean;
+    golden_cross: boolean;
+  };
+  momentum: {
+    rsi: number | null;
+    macd: number | null;
+    macd_signal: number | null;
+    macd_hist: number | null;
+  };
+  volatility: {
+    ann_vol: number | null;
+    atr_pct: number | null;
+    bollinger_pctb: number | null;
+    max_drawdown: number | null;
+    current_drawdown: number | null;
+  };
+  returns: {
+    r_1m: number | null;
+    r_3m: number | null;
+    r_6m: number | null;
+    r_12m: number | null;
+    up_day_pct: number | null;
+  };
+  range: {
+    high_52w: number | null;
+    low_52w: number | null;
+    pct_from_high: number | null;
+    pct_from_low: number | null;
+  };
+  volume_ratio: number | null;
+  scorecard: ScorecardItem[];
+  verdict: { label: string; bullish: number; bearish: number; neutral: number };
+}
+
+export interface RelativeStrength {
+  in_universe: boolean;
+  rank?: number;
+  universe_size?: number;
+  percentile?: number;
+  decile?: number;
+  score?: number;
+  sector?: string;
+  sector_size?: number;
+  score_vs_sector?: number;
+  mom_vs_sector?: number;
+  z_breakdown?: Record<string, number | null>;
+}
+
+export interface TechnicalsResponse {
+  symbol: string;
+  technicals: Technicals;
+  relative_strength: RelativeStrength | null;
+}
+
 export interface FilterOverrides {
   min_price?: number;
   min_dollar_volume?: number;

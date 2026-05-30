@@ -190,6 +190,61 @@ def embedding(
     return JSONResponse(content=json.loads(_cached_embedding(key)))
 
 
+def _relative_strength(symbol: str) -> dict | None:
+    """Relative strength from the cached leaderboard: rank/percentile vs the
+    whole market, and score/momentum vs the stock's own sector."""
+    payload = json.loads(_cached_leaderboard(json.dumps({}, sort_keys=True)))
+    rows = payload.get("rows", [])
+    if not rows:
+        return None
+    df = pd.DataFrame(rows)
+    hit = df[df["symbol"] == symbol]
+    if hit.empty:
+        return {"in_universe": False}
+    row = hit.iloc[0]
+    sector = row.get("sector")
+    sect = df[df["sector"] == sector]
+    return {
+        "in_universe": True,
+        "rank": int(row["rank"]),
+        "universe_size": int(len(df)),
+        "percentile": round(float(row["percentile"]), 4),
+        "decile": int(row["decile"]),
+        "score": round(float(row["score"]), 4),
+        "sector": sector,
+        "sector_size": int(len(sect)),
+        "score_vs_sector": round(float(row["score"] - sect["score"].mean()), 4),
+        "mom_vs_sector": round(float(row["mom_12_1"] - sect["mom_12_1"].mean()), 4),
+        "z_breakdown": {
+            k: (None if pd.isna(row.get(k)) else round(float(row.get(k)), 3))
+            for k in ("z_risk_adjusted_mom", "z_high_52w_proximity",
+                      "z_path_quality", "z_mom_3_6")
+            if k in row
+        },
+    }
+
+
+@app.get("/api/stock/{symbol}/technicals")
+def stock_technicals(symbol: str):
+    """Deterministic technical analysis + relative strength for one stock."""
+    from finance.technicals import analyze_stock
+
+    symbol = symbol.upper()
+    store = _read_store()
+    try:
+        bars = store.read_bars([symbol])
+        if bars.empty:
+            raise HTTPException(404, f"No data for {symbol}")
+        tech = analyze_stock(bars)
+    finally:
+        store.close()
+    return {
+        "symbol": symbol,
+        "technicals": tech,
+        "relative_strength": _relative_strength(symbol),
+    }
+
+
 @app.get("/api/sectors")
 def sectors():
     """Sector leaderboard: average momentum score per sector (leading→lagging)."""
@@ -333,10 +388,16 @@ def make_research(
     from finance.config import get_settings
     from finance.research import get_or_generate
 
+    from finance.technicals import analyze_stock, technicals_summary_text
+
     symbol = symbol.upper()
     read_store = _read_store()
     try:
         ctx = _stock_context(read_store, symbol)
+        # Ground the narrative in COMPUTED technicals (no hallucinated numbers).
+        bars = read_store.read_bars([symbol])
+        if not bars.empty:
+            ctx["technicals_text"] = technicals_summary_text(analyze_stock(bars))
         if not get_settings().research_enabled:
             return get_or_generate(ctx, read_store, generate=False)
     finally:

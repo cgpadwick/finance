@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { useStock } from "../lib/api";
 import { CandleChart } from "../components/CandleChart";
 import { ResearchPanel } from "../components/ResearchPanel";
+import { TechnicalsReport } from "../components/TechnicalsReport";
 import { compactMoney, money, num, pct, signColor } from "../lib/format";
 
 const LINKS = (s: string) => [
@@ -143,8 +144,19 @@ export function StockDetail() {
       )}
 
       {symbol && (
-        <div className="mt-5">
-          <ResearchPanel symbol={symbol} />
+        <div className="mt-5 rounded-xl border border-violet-900/50 bg-slate-900/30 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-100">
+              ✨ Deep Insights
+            </span>
+            <span className="rounded bg-gradient-to-r from-violet-600 to-fuchsia-600 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white">
+              PRO
+            </span>
+          </div>
+          <TechnicalsReport symbol={symbol} />
+          <div className="mt-4 border-t border-slate-800 pt-4">
+            <ResearchPanel symbol={symbol} />
+          </div>
         </div>
       )}
     </div>

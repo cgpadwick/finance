@@ -42,10 +42,13 @@ def build_prompt(ctx: dict) -> str:
         f"- Risk-adjusted momentum: {ctx.get('risk_adjusted_mom', 'n/a')}\n"
         f"- Proximity to 52-week high: {pct(ctx.get('high_52w_proximity'))}\n"
         f"- Annualized volatility: {pct(ctx.get('volatility'))}\n\n"
-        "Explain what the company does and the most plausible reasons it has "
-        "strong (or weak) price momentum right now, grounded in recent, real "
-        "developments. If the momentum figure looks implausibly large, treat it "
-        "as a dataset quirk and focus on the real company."
+        + (f"{ctx['technicals_text']}\n\n" if ctx.get("technicals_text") else "")
+        + "Write the report. Explain what the company does and the most plausible "
+        "reasons it has strong (or weak) price momentum right now, grounded in "
+        "recent, real developments AND the computed technicals above (cite the "
+        "real figures — RSI, trend, drawdown, returns — do not invent numbers). "
+        "If a momentum figure looks implausibly large, treat it as a dataset "
+        "quirk and focus on the real company."
     )
 
 

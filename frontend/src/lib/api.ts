@@ -7,6 +7,7 @@ import type {
   ResearchResult,
   SectorsResponse,
   StockDetail,
+  TechnicalsResponse,
 } from "../types";
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -42,6 +43,14 @@ export function useStock(symbol: string | undefined) {
   return useQuery({
     queryKey: ["stock", symbol],
     queryFn: () => fetchJson<StockDetail>(`/api/stock/${symbol}?ma=20,50,200`),
+    enabled: !!symbol,
+  });
+}
+
+export function useTechnicals(symbol: string | undefined) {
+  return useQuery({
+    queryKey: ["technicals", symbol],
+    queryFn: () => fetchJson<TechnicalsResponse>(`/api/stock/${symbol}/technicals`),
     enabled: !!symbol,
   });
 }
