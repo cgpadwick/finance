@@ -53,19 +53,24 @@ def fetch_symbols(exchanges: list[str] | None = None, save: bool = True) -> list
         fname = EXCHANGE_FILES.get(exch.upper())
         if not fname:
             raise ValueError(f"Unknown exchange {exch!r}; known: {list(EXCHANGE_FILES)}")
-        frames.append(_download_listing(fname))
+        frame = _download_listing(fname)
+        # otherlisted.txt uses "ACT Symbol"; normalize so the combined CSV has a
+        # single "Symbol" column (otherwise NYSE rows would be lost on concat).
+        if "ACT Symbol" in frame.columns and "Symbol" not in frame.columns:
+            frame = frame.rename(columns={"ACT Symbol": "Symbol"})
+        frames.append(frame)
 
     df = pd.concat(frames, ignore_index=True)
 
-    # Symbol column differs across files (Symbol vs ACT Symbol); normalize.
-    sym_col = "Symbol" if "Symbol" in df.columns else "ACT Symbol"
     if "Test Issue" in df.columns:
         df = df[df["Test Issue"] != "Y"]
+    # Drop non-common-stock tickers (preferreds/warrants/units carry $ or .).
+    # Filter the rows so the saved CSV is clean too (load_cached_symbols reads it).
+    df = df[df["Symbol"].notna()]
+    df = df[~df["Symbol"].astype(str).str.contains(r"[\$\.]", regex=True, na=True)]
+    df["Symbol"] = df["Symbol"].astype(str).str.strip()
 
-    symbols = df[sym_col].dropna().astype(str).str.strip()
-    # Drop obvious non-equity tickers (warrants/units/preferreds carry $ or .)
-    symbols = symbols[~symbols.str.contains(r"[\$\.]", regex=True)]
-    symbols = sorted(symbols.unique().tolist())
+    symbols = sorted(df["Symbol"].unique().tolist())
 
     if save:
         SYMBOLS_CSV.parent.mkdir(parents=True, exist_ok=True)

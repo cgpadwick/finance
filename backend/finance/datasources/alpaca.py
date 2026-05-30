@@ -82,9 +82,20 @@ class AlpacaSource(DataSource):
         out: dict[str, pd.DataFrame] = {}
         for i in range(0, len(symbols), _BATCH_SIZE):
             batch = symbols[i : i + _BATCH_SIZE]
-            bars = self._request(batch, start, end)
-            for sym in batch:
-                frame = self._to_frame(bars.data.get(sym, []))
-                if not frame.empty:
-                    out[sym] = frame
+            try:
+                bars = self._request(batch, start, end)
+                for sym in batch:
+                    frame = self._to_frame(bars.data.get(sym, []))
+                    if not frame.empty:
+                        out[sym] = frame
+            except Exception:  # noqa: BLE001
+                # A single invalid ticker fails the whole multi-symbol request;
+                # fall back to per-symbol so the rest of the batch still loads.
+                for sym in batch:
+                    try:
+                        frame = self.get_daily_adjusted(sym, start, end)
+                        if not frame.empty:
+                            out[sym] = frame
+                    except Exception:  # noqa: BLE001 - skip the bad ticker
+                        continue
         return out

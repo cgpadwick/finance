@@ -3,7 +3,7 @@
 
 ingest:
   start_date: "2018-01-01"   # backfill window start (>=2yr before earliest momentum date)
-  exchanges: ["NASDAQ"]       # universe.py symbol source(s)
+  exchanges: ["NASDAQ", "OTHER"]   # OTHER = NYSE/AMEX (otherlisted.txt)
 
 universe:
   min_price: 5.0              # adjusted price floor — primary penny-stock filter
