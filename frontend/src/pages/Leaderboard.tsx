@@ -138,8 +138,13 @@ export function Leaderboard() {
               Momentum Leaderboard
             </h2>
             <p className="text-xs text-slate-500">
-              {data?.as_of ? `As of ${data.as_of}` : ""} ·{" "}
-              {data?.count ?? 0} eligible names
+              {data?.as_of ? `As of ${data.as_of} · ` : ""}
+              showing{" "}
+              <span className="text-slate-300">
+                {rows.length.toLocaleString()} {view}
+                {sector !== "All" ? ` in ${sector}` : ""}
+              </span>{" "}
+              of {(data?.count ?? 0).toLocaleString()} eligible
               {isFetching && (
                 <span className="ml-2 text-sky-400">updating…</span>
               )}
