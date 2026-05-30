@@ -33,7 +33,18 @@ export function SectorBreakdown() {
                 <th className="w-1/3 px-3 py-2.5 font-medium"></th>
                 <th className="px-3 py-2.5 text-right font-medium">Avg 12-1</th>
                 <th className="px-3 py-2.5 text-right font-medium">Names</th>
-                <th className="px-3 py-2.5 text-right font-medium">W / L</th>
+                <th
+                  className="px-3 py-2.5 text-right font-medium text-emerald-400"
+                  title="Stocks in the top decile of the overall momentum ranking"
+                >
+                  Winners
+                </th>
+                <th
+                  className="px-3 py-2.5 text-right font-medium text-rose-400"
+                  title="Stocks in the bottom decile of the overall momentum ranking"
+                >
+                  Losers
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -68,9 +79,11 @@ export function SectorBreakdown() {
                       {pct(s.avg_mom_12_1, 0)}
                     </td>
                     <td className="px-3 py-2 text-right text-slate-300">{s.count}</td>
-                    <td className="px-3 py-2 text-right text-slate-400">
-                      <span className="text-emerald-400">{s.winners}</span> /{" "}
-                      <span className="text-rose-400">{s.losers}</span>
+                    <td className="px-3 py-2 text-right font-medium text-emerald-400">
+                      {s.winners}
+                    </td>
+                    <td className="px-3 py-2 text-right font-medium text-rose-400">
+                      {s.losers}
                     </td>
                   </tr>
                 );
@@ -79,9 +92,14 @@ export function SectorBreakdown() {
           </table>
         </div>
       )}
-      <p className="mt-2 text-[11px] text-slate-500">
+      <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
         Score is the cross-sectional composite (z-scored), so a positive sector
-        average means its names skew toward the top of the overall ranking.
+        average means its names skew toward the top of the overall ranking.{" "}
+        <span className="text-emerald-400">Winners</span> /{" "}
+        <span className="text-rose-400">Losers</span> = how many of the sector's
+        stocks sit in the top / bottom decile of the overall momentum ranking.
+        Universe is currently NASDAQ-listed only, so some sectors (e.g. Energy)
+        are thin.
       </p>
     </div>
   );
