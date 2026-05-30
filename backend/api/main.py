@@ -190,6 +190,29 @@ def embedding(
     return JSONResponse(content=json.loads(_cached_embedding(key)))
 
 
+@app.get("/api/sectors")
+def sectors():
+    """Sector leaderboard: average momentum score per sector (leading→lagging)."""
+    payload = json.loads(_cached_leaderboard(json.dumps({}, sort_keys=True)))
+    rows = payload.get("rows", [])
+    if not rows:
+        return {"as_of": payload.get("as_of"), "sectors": []}
+    df = pd.DataFrame(rows)
+    df["sector"] = df["sector"].fillna("Unknown")
+    g = df.groupby("sector")
+    agg = g.agg(
+        count=("symbol", "size"),
+        avg_score=("score", "mean"),
+        median_score=("score", "median"),
+        avg_mom_12_1=("mom_12_1", "mean"),
+        avg_high_52w=("high_52w_proximity", "mean"),
+        winners=("is_winner", "sum"),
+        losers=("is_loser", "sum"),
+    ).reset_index()
+    agg = agg.sort_values("avg_score", ascending=False)
+    return {"as_of": payload.get("as_of"), "sectors": _clean_records(agg)}
+
+
 @app.get("/api/stock/{symbol}")
 def stock_detail(
     symbol: str,

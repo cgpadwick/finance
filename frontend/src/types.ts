@@ -104,6 +104,22 @@ export interface EmbeddingResponse {
   points: EmbeddingPoint[];
 }
 
+export interface SectorRow {
+  sector: string;
+  count: number;
+  avg_score: number;
+  median_score: number;
+  avg_mom_12_1: number;
+  avg_high_52w: number;
+  winners: number;
+  losers: number;
+}
+
+export interface SectorsResponse {
+  as_of: string | null;
+  sectors: SectorRow[];
+}
+
 export interface FilterOverrides {
   min_price?: number;
   min_dollar_volume?: number;

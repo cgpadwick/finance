@@ -5,6 +5,7 @@ import type {
   LeaderboardResponse,
   ResearchConfig,
   ResearchResult,
+  SectorsResponse,
   StockDetail,
 } from "../types";
 
@@ -93,6 +94,13 @@ export function useGenerateCohort(view: "winners" | "losers") {
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return res.json();
     },
+  });
+}
+
+export function useSectors() {
+  return useQuery({
+    queryKey: ["sectors"],
+    queryFn: () => fetchJson<SectorsResponse>("/api/sectors"),
   });
 }
 

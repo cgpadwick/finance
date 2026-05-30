@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
 import { Leaderboard } from "./pages/Leaderboard";
 import { StockDetail } from "./pages/StockDetail";
+import { SectorBreakdown } from "./pages/SectorBreakdown";
 
 // ECharts is heavy — only load the Market Map chunk when that route is visited.
 const MarketMap = lazy(() =>
@@ -22,6 +23,7 @@ function App() {
             <nav className="flex gap-4 text-sm">
               {[
                 { to: "/", label: "Leaderboard" },
+                { to: "/sectors", label: "Sectors" },
                 { to: "/map", label: "Market Map" },
               ].map((l) => (
                 <NavLink
@@ -48,6 +50,7 @@ function App() {
         >
           <Routes>
             <Route path="/" element={<Leaderboard />} />
+            <Route path="/sectors" element={<SectorBreakdown />} />
             <Route path="/map" element={<MarketMap />} />
             <Route path="/stock/:symbol" element={<StockDetail />} />
           </Routes>
