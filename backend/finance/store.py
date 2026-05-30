@@ -42,8 +42,15 @@ CREATE TABLE IF NOT EXISTS research (
     as_of        VARCHAR,
     report       VARCHAR,
     generated_at VARCHAR,
+    model        VARCHAR,
+    cost         DOUBLE,
+    tokens       BIGINT,
     PRIMARY KEY (symbol, as_of)
 );
+-- migrate older DBs that predate the cost/model columns
+ALTER TABLE research ADD COLUMN IF NOT EXISTS model VARCHAR;
+ALTER TABLE research ADD COLUMN IF NOT EXISTS cost DOUBLE;
+ALTER TABLE research ADD COLUMN IF NOT EXISTS tokens BIGINT;
 """
 
 
@@ -144,12 +151,23 @@ class BarStore:
         ).df()
         return df.iloc[0].to_dict() if len(df) else None
 
-    def save_research(self, symbol: str, as_of: str, report: str, ts: str) -> None:
+    def save_research(
+        self,
+        symbol: str,
+        as_of: str,
+        report: str,
+        ts: str,
+        model: str | None = None,
+        cost: float | None = None,
+        tokens: int | None = None,
+    ) -> None:
         self.con.execute(
             "DELETE FROM research WHERE symbol = ? AND as_of = ?", [symbol, as_of]
         )
         self.con.execute(
-            "INSERT INTO research VALUES (?, ?, ?, ?)", [symbol, as_of, report, ts]
+            "INSERT INTO research (symbol, as_of, report, generated_at, model, cost, tokens) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [symbol, as_of, report, ts, model, cost, tokens],
         )
 
     def companies_with_sector(self) -> set[str]:

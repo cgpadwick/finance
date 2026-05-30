@@ -40,24 +40,52 @@ def get_client(settings: Settings | None = None):
     )
 
 
-def complete(
+def _extract_cost(usage) -> float | None:
+    """OpenRouter returns per-call USD cost on the usage object (extra field)."""
+    if usage is None:
+        return None
+    cost = getattr(usage, "cost", None)
+    if cost is None:
+        extra = getattr(usage, "model_extra", None) or {}
+        cost = extra.get("cost")
+    return float(cost) if cost is not None else None
+
+
+def complete_with_usage(
     messages: list[dict],
     model: str,
     max_tokens: int = 1500,
     settings: Settings | None = None,
     **kwargs,
-) -> str:
-    """Single-shot chat completion → text content, with retry + backoff."""
+) -> dict:
+    """Single-shot chat completion → {text, model, cost, tokens}, retry+backoff.
+
+    Asks OpenRouter to include usage/cost in the response (`usage.include`)."""
     client = get_client(settings)
     last_err: Exception | None = None
     for attempt in range(_RETRIES):
         try:
             resp = client.chat.completions.create(
-                model=model, messages=messages, max_tokens=max_tokens, **kwargs
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                extra_body={"usage": {"include": True}},
+                **kwargs,
             )
-            return (resp.choices[0].message.content or "").strip()
+            usage = resp.usage
+            return {
+                "text": (resp.choices[0].message.content or "").strip(),
+                "model": resp.model or model,
+                "cost": _extract_cost(usage),
+                "tokens": getattr(usage, "total_tokens", None),
+            }
         except Exception as e:  # noqa: BLE001 - retry transient failures
             last_err = e
             if attempt < _RETRIES - 1:
                 time.sleep(2**attempt)
     raise last_err  # type: ignore[misc]
+
+
+def complete(messages: list[dict], model: str, **kwargs) -> str:
+    """Convenience: return only the text."""
+    return complete_with_usage(messages, model, **kwargs)["text"]

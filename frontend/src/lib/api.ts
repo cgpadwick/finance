@@ -3,6 +3,7 @@ import type {
   EmbeddingResponse,
   FilterOverrides,
   LeaderboardResponse,
+  ResearchConfig,
   ResearchResult,
   StockDetail,
 } from "../types";
@@ -44,6 +45,13 @@ export function useStock(symbol: string | undefined) {
   });
 }
 
+export function useResearchConfig() {
+  return useQuery({
+    queryKey: ["research-config"],
+    queryFn: () => fetchJson<ResearchConfig>("/api/research/config"),
+  });
+}
+
 // Cached research report (no generation / no cost).
 export function useResearch(symbol: string | undefined) {
   return useQuery({
@@ -53,11 +61,35 @@ export function useResearch(symbol: string | undefined) {
   });
 }
 
-// Generate (or hand-off) a report on demand.
+// Generate (or hand-off) a report on demand, optionally with a model + force.
 export function useGenerateResearch(symbol: string | undefined) {
   return useMutation({
-    mutationFn: async (): Promise<ResearchResult> => {
-      const res = await fetch(`/api/stock/${symbol}/research`, { method: "POST" });
+    mutationFn: async (opts: { model?: string; force?: boolean } = {}): Promise<ResearchResult> => {
+      const p = new URLSearchParams();
+      if (opts.model) p.set("model", opts.model);
+      if (opts.force) p.set("force", "true");
+      const res = await fetch(`/api/stock/${symbol}/research?${p}`, { method: "POST" });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    },
+  });
+}
+
+// Cohort briefing (top winners / bottom losers).
+export function useCohort(view: "winners" | "losers") {
+  return useQuery({
+    queryKey: ["cohort", view],
+    queryFn: () => fetchJson<ResearchResult>(`/api/research/cohort?view=${view}`),
+  });
+}
+
+export function useGenerateCohort(view: "winners" | "losers") {
+  return useMutation({
+    mutationFn: async (opts: { model?: string; force?: boolean } = {}): Promise<ResearchResult> => {
+      const p = new URLSearchParams({ view });
+      if (opts.model) p.set("model", opts.model);
+      if (opts.force) p.set("force", "true");
+      const res = await fetch(`/api/research/cohort?${p}`, { method: "POST" });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return res.json();
     },

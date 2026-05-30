@@ -11,6 +11,7 @@ import {
 import { useHealth, useLeaderboard } from "../lib/api";
 import { FilterPanel } from "../components/FilterPanel";
 import { AnalysisControls } from "../components/AnalysisControls";
+import { CohortPanel } from "../components/CohortPanel";
 import type { FilterOverrides, LeaderboardRow } from "../types";
 import { compactMoney, money, num, pct, signColor } from "../lib/format";
 
@@ -236,6 +237,10 @@ export function Leaderboard() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="mt-6">
+          <CohortPanel view={view === "losers" ? "losers" : "winners"} />
         </div>
       </div>
 

@@ -254,11 +254,35 @@ def _stock_context(store: BarStore, symbol: str) -> dict:
     return ctx
 
 
-@app.get("/api/research/config")
+# A small curated model menu for the UI picker (all OpenRouter slugs).
+RESEARCH_MODELS = [
+    "deepseek/deepseek-v4-flash",
+    "anthropic/claude-sonnet-4-6",
+    "google/gemini-3-flash-preview",
+    "openai/gpt-5-mini",
+]
+
+
 def research_config():
     from finance.config import get_settings
 
-    return {"enabled": get_settings().research_enabled}
+    s = get_settings()
+    return {
+        "enabled": s.research_enabled,
+        "model": s.research_model,
+        "models": RESEARCH_MODELS,
+        "web_search": s.research_web_search,
+    }
+
+
+# register without decorator stacking issues
+app.add_api_route("/api/research/config", research_config, methods=["GET"])
+
+
+def _now() -> str:
+    from datetime import datetime
+
+    return datetime.now().isoformat(timespec="seconds")
 
 
 @app.get("/api/stock/{symbol}/research")
@@ -276,29 +300,86 @@ def get_research(symbol: str):
 
 
 @app.post("/api/stock/{symbol}/research")
-def make_research(symbol: str):
+def make_research(
+    symbol: str,
+    model: str | None = Query(None),
+    force: bool = Query(False),
+):
     """Generate (and cache) a report if a key is configured; else return the
     hand-off prompt. Generation needs a read-write store."""
-    from datetime import datetime
-
-    from finance.research import get_or_generate
-
     from finance.config import get_settings
+    from finance.research import get_or_generate
 
     symbol = symbol.upper()
     read_store = _read_store()
     try:
         ctx = _stock_context(read_store, symbol)
         if not get_settings().research_enabled:
-            # No key: return the hand-off prompt without opening a writer.
             return get_or_generate(ctx, read_store, generate=False)
     finally:
         read_store.close()
-    # Generation writes the cached report -> needs a read-write connection.
     store = BarStore()
     try:
         return get_or_generate(
-            ctx, store, generate=True, now=datetime.now().isoformat(timespec="seconds")
+            ctx, store, generate=True, now=_now(), force=force, model=model
+        )
+    finally:
+        store.close()
+
+
+def _cohort_rows(view: str, n: int) -> tuple[list[dict], str]:
+    """Top-N winners / bottom-N losers from the current leaderboard."""
+    store = _read_store()
+    try:
+        lb = compute_leaderboard(store, BASE_CONFIG)
+    finally:
+        store.close()
+    if lb.empty:
+        return [], ""
+    as_of = lb["as_of"].iloc[0]
+    sel = lb[lb["is_winner"]] if view == "winners" else lb[lb["is_loser"]]
+    sel = sel.sort_values("score", ascending=(view == "losers")).head(n)
+    cols = ["symbol", "sector", "score", "mom_12_1"]
+    rows = json.loads(sel[[c for c in cols if c in sel.columns]].to_json(orient="records"))
+    return rows, as_of
+
+
+@app.get("/api/research/cohort")
+def get_cohort(view: str = Query("winners")):
+    """Cached cohort briefing only (no generation)."""
+    from finance.research import get_or_generate_cohort
+
+    store = _read_store()
+    try:
+        rows, as_of = _cohort_rows(view, 10)
+        return get_or_generate_cohort(view, rows, as_of, store, generate=False)
+    finally:
+        store.close()
+
+
+@app.post("/api/research/cohort")
+def make_cohort(
+    view: str = Query("winners"),
+    n: int = Query(10),
+    model: str | None = Query(None),
+    force: bool = Query(False),
+):
+    from finance.config import get_settings
+    from finance.research import get_or_generate_cohort
+
+    rows, as_of = _cohort_rows(view, n)
+    if not rows:
+        return {"mode": "handoff", "report": None, "prompt": "", "research_enabled": False}
+    if not get_settings().research_enabled:
+        store = _read_store()
+        try:
+            return get_or_generate_cohort(view, rows, as_of, store, generate=False)
+        finally:
+            store.close()
+    store = BarStore()
+    try:
+        return get_or_generate_cohort(
+            view, rows, as_of, store, generate=True, now=_now(), force=force, model=model
         )
     finally:
         store.close()

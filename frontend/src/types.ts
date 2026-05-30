@@ -73,6 +73,16 @@ export interface ResearchResult {
   prompt?: string;
   research_enabled?: boolean;
   generated_at?: string;
+  model?: string | null;
+  cost?: number | null;
+  tokens?: number | null;
+}
+
+export interface ResearchConfig {
+  enabled: boolean;
+  model: string;
+  models: string[];
+  web_search: boolean;
 }
 
 export interface EmbeddingPoint {
