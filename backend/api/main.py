@@ -411,21 +411,32 @@ def make_research(
         store.close()
 
 
-def _cohort_rows(view: str, n: int) -> tuple[list[dict], str]:
-    """Top-N winners / bottom-N losers from the current leaderboard."""
+def _cohort_rows(
+    view: str, n: int, sector: str | None = None
+) -> tuple[list[dict], str, str, str]:
+    """Rows + as_of + (label, cache_key) for a cohort.
+
+    view=winners|losers, or sector=<name> for a single-sector cohort."""
     store = _read_store()
     try:
         lb = compute_leaderboard(store, BASE_CONFIG)
     finally:
         store.close()
     if lb.empty:
-        return [], ""
+        return [], "", "", ""
     as_of = lb["as_of"].iloc[0]
-    sel = lb[lb["is_winner"]] if view == "winners" else lb[lb["is_loser"]]
-    sel = sel.sort_values("score", ascending=(view == "losers")).head(n)
+    if sector:
+        sel = lb[lb["sector"] == sector].sort_values("score", ascending=False).head(n)
+        label = f"the top momentum stocks in the {sector} sector"
+        key = f"__sector_{sector}"
+    else:
+        sel = lb[lb["is_winner"]] if view == "winners" else lb[lb["is_loser"]]
+        sel = sel.sort_values("score", ascending=(view == "losers")).head(n)
+        label = f"the current top momentum {view}"
+        key = f"__cohort_{view}"
     cols = ["symbol", "sector", "score", "mom_12_1"]
     rows = json.loads(sel[[c for c in cols if c in sel.columns]].to_json(orient="records"))
-    return rows, as_of
+    return rows, as_of, label, key
 
 
 def _cohort_aggregate(rows: list[dict], store: BarStore) -> tuple[dict, str]:
@@ -443,15 +454,15 @@ def _cohort_aggregate(rows: list[dict], store: BarStore) -> tuple[dict, str]:
 
 
 @app.get("/api/research/cohort")
-def get_cohort(view: str = Query("winners")):
-    """Cached cohort briefing + computed cohort technicals (no generation)."""
+def get_cohort(view: str = Query("winners"), sector: str | None = Query(None)):
+    """Cached cohort/sector briefing + computed technicals (no generation)."""
     from finance.research import get_or_generate_cohort
 
     store = _read_store()
     try:
-        rows, as_of = _cohort_rows(view, 10)
+        rows, as_of, label, key = _cohort_rows(view, 10, sector)
         agg, _ = _cohort_aggregate(rows, store) if rows else ({}, "")
-        res = get_or_generate_cohort(view, rows, as_of, store, generate=False)
+        res = get_or_generate_cohort(label, key, rows, as_of, store, generate=False)
         return {**res, "aggregate": agg}
     finally:
         store.close()
@@ -460,6 +471,7 @@ def get_cohort(view: str = Query("winners")):
 @app.post("/api/research/cohort")
 def make_cohort(
     view: str = Query("winners"),
+    sector: str | None = Query(None),
     n: int = Query(10),
     model: str | None = Query(None),
     force: bool = Query(False),
@@ -467,21 +479,21 @@ def make_cohort(
     from finance.config import get_settings
     from finance.research import get_or_generate_cohort
 
-    rows, as_of = _cohort_rows(view, n)
+    rows, as_of, label, key = _cohort_rows(view, n, sector)
     if not rows:
         return {"mode": "handoff", "report": None, "prompt": "", "research_enabled": False}
     read_store = _read_store()
     try:
         agg, tech_text = _cohort_aggregate(rows, read_store)
         if not get_settings().research_enabled:
-            res = get_or_generate_cohort(view, rows, as_of, read_store, generate=False)
+            res = get_or_generate_cohort(label, key, rows, as_of, read_store, generate=False)
             return {**res, "aggregate": agg}
     finally:
         read_store.close()
     store = BarStore()
     try:
         res = get_or_generate_cohort(
-            view, rows, as_of, store, generate=True, now=_now(), force=force,
+            label, key, rows, as_of, store, generate=True, now=_now(), force=force,
             model=model, tech_text=tech_text,
         )
         return {**res, "aggregate": agg}

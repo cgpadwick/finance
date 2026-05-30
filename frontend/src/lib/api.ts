@@ -85,18 +85,21 @@ export function useGenerateResearch(symbol: string | undefined) {
   });
 }
 
-// Cohort briefing (top winners / bottom losers).
-export function useCohort(view: "winners" | "losers") {
+// Cohort briefing — winners/losers, or a single sector (sector overrides view).
+export function useCohort(view: "winners" | "losers", sector?: string) {
+  const qs = sector ? `sector=${encodeURIComponent(sector)}` : `view=${view}`;
   return useQuery({
-    queryKey: ["cohort", view],
-    queryFn: () => fetchJson<ResearchResult>(`/api/research/cohort?view=${view}`),
+    queryKey: ["cohort", view, sector ?? null],
+    queryFn: () => fetchJson<ResearchResult>(`/api/research/cohort?${qs}`),
   });
 }
 
-export function useGenerateCohort(view: "winners" | "losers") {
+export function useGenerateCohort(view: "winners" | "losers", sector?: string) {
   return useMutation({
     mutationFn: async (opts: { model?: string; force?: boolean } = {}): Promise<ResearchResult> => {
-      const p = new URLSearchParams({ view });
+      const p = new URLSearchParams();
+      if (sector) p.set("sector", sector);
+      else p.set("view", view);
       if (opts.model) p.set("model", opts.model);
       if (opts.force) p.set("force", "true");
       const res = await fetch(`/api/research/cohort?${p}`, { method: "POST" });

@@ -8,9 +8,31 @@ const SIGNAL_STYLE: Record<string, string> = {
   neutral: "bg-slate-800/60 text-slate-400 border-slate-700",
 };
 
+// Plain-English explanations, matched by keyword in the label. Shown on hover.
+const GLOSSARY: [string, string][] = [
+  ["200-day MA", "The average price over the last ~200 trading days. Trading above it means the long-term trend is up."],
+  ["50-day MA", "The average price over the last ~50 trading days. Above it = shorter-term uptrend."],
+  ["50/200", "A 'golden cross' (50-day average rising above the 200-day) is a classic confirmed-uptrend signal; a 'death cross' is the opposite."],
+  ["RSI", "Relative Strength Index, 0–100: how strongly the price has been rising. Above 70 = 'overbought' (possibly stretched); below 30 = 'oversold'."],
+  ["MACD", "Compares short- vs long-term price trends. Above its signal line means upward momentum."],
+  ["Bollinger", "Where today's price sits in its normal trading band. Near the top = strong move (or stretched); near the bottom = weak."],
+  ["Drawdown", "How far the price is below its recent peak. Near 0% = at/near highs; a big negative = beaten down."],
+  ["Volume", "How much the stock traded vs its recent average. A surge can confirm a price move."],
+  ["Ann. Vol", "How much the price swings around, annualized. Higher = bumpier/riskier."],
+  ["Max DD", "The worst peak-to-trough drop over the period."],
+];
+
+function explain(label: string): string | undefined {
+  const hit = GLOSSARY.find(([k]) => label.includes(k));
+  return hit?.[1];
+}
+
 function Chip({ item }: { item: ScorecardItem }) {
   return (
-    <div className={`rounded-lg border px-2.5 py-1.5 text-xs ${SIGNAL_STYLE[item.signal]}`}>
+    <div
+      title={explain(item.label)}
+      className={`cursor-help rounded-lg border px-2.5 py-1.5 text-xs ${SIGNAL_STYLE[item.signal]}`}
+    >
       <div className="font-medium">{item.label}</div>
       <div className="opacity-80">{item.detail}</div>
     </div>
@@ -18,13 +40,20 @@ function Chip({ item }: { item: ScorecardItem }) {
 }
 
 function Metric({ label, value, cls = "" }: { label: string; value: string; cls?: string }) {
+  const tip = explain(label);
   return (
-    <div>
+    <div title={tip} className={tip ? "cursor-help" : ""}>
       <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className={`text-sm font-semibold tabular-nums ${cls}`}>{value}</div>
     </div>
   );
 }
+
+const VERDICT_PLAIN: Record<string, string> = {
+  Bullish: "Most trend & momentum checks are positive — the stock is in an uptrend.",
+  Bearish: "Most checks are negative — the stock is in a downtrend.",
+  Mixed: "The signals are mixed — no clear trend right now.",
+};
 
 export function TechnicalsReport({ symbol }: { symbol: string }) {
   const { data, isLoading, error } = useTechnicals(symbol);
@@ -53,13 +82,19 @@ export function TechnicalsReport({ symbol }: { symbol: string }) {
   return (
     <div className="space-y-4">
       {/* verdict */}
-      <div className="flex items-center gap-3">
-        <span className={`text-lg font-bold ${vColor}`}>{t.verdict.label}</span>
-        <span className="text-xs text-slate-400">
-          <span className="text-emerald-400">{t.verdict.bullish} bullish</span> ·{" "}
-          <span className="text-rose-400">{t.verdict.bearish} bearish</span> ·{" "}
-          {t.verdict.neutral} neutral
-        </span>
+      <div>
+        <div className="flex items-center gap-3">
+          <span className={`text-lg font-bold ${vColor}`}>{t.verdict.label}</span>
+          <span className="text-xs text-slate-400">
+            {t.verdict.bullish} of{" "}
+            {t.verdict.bullish + t.verdict.bearish + t.verdict.neutral} checks positive
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs text-slate-400">{VERDICT_PLAIN[t.verdict.label]}</p>
+        <p className="mt-0.5 text-[11px] text-slate-500">
+          Each tile below is one technical check — green is positive, red negative.
+          Hover any tile for what it means.
+        </p>
       </div>
 
       {/* scorecard chips */}

@@ -25,20 +25,27 @@ function AggregateStats({ a }: { a: CohortAggregate }) {
   );
 }
 
-// Theme-level "why is this cohort moving" briefing for the current winners/losers.
-export function CohortPanel({ view }: { view: "winners" | "losers" }) {
-  const cached = useCohort(view);
-  const gen = useGenerateCohort(view);
+// Theme-level "why is this group moving" briefing — winners/losers or a sector.
+export function CohortPanel({
+  view,
+  sector,
+}: {
+  view: "winners" | "losers";
+  sector?: string;
+}) {
+  const cached = useCohort(view, sector);
+  const gen = useGenerateCohort(view, sector);
 
   const result: ResearchResult | undefined = gen.data ?? cached.data;
   const report = result?.report;
   const enabled = result?.research_enabled ?? true;
+  const subject = sector ? `the ${sector} sector` : `the ${view}`;
 
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-200">
-          Cohort briefing — what's driving the {view}
+          {sector ? `✨ ${sector} sector analysis` : `Cohort briefing — what's driving the ${view}`}
         </h3>
         <button
           onClick={() => gen.mutate({ force: !!report })}
@@ -49,7 +56,7 @@ export function CohortPanel({ view }: { view: "winners" | "losers" }) {
             ? "Researching…"
             : report
               ? "Regenerate"
-              : `Research top ${view}`}
+              : `Analyze ${subject}`}
         </button>
       </div>
 
@@ -70,7 +77,7 @@ export function CohortPanel({ view }: { view: "winners" | "losers" }) {
         <p className="text-xs text-slate-500">
           {!enabled
             ? "Set OPENROUTER_API_KEY to enable in-app briefings."
-            : `Generate a theme-level summary of why the current top ${view} are moving — grouped by sector, with the common root causes and shared risks.`}
+            : `Generate a plain-English summary of what's driving ${subject} right now — the leaders, common root causes, and shared risks.`}
         </p>
       )}
     </div>

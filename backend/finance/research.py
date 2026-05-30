@@ -17,12 +17,17 @@ from finance.config import Settings, get_settings
 from finance.store import BarStore
 
 SYSTEM = (
-    "You are an equity research analyst. Write a concise, factual research note "
-    "for a momentum-screener UI. Be specific and current; use web search to find "
-    "recent catalysts. Structure with short markdown sections: a one-line summary, "
+    "You are an equity research analyst writing for a NON-EXPERT investor. Write a "
+    "concise, factual note for a momentum-screener UI. Be specific and current; use "
+    "web search for recent catalysts. CRITICAL: explain any technical term in plain "
+    "English the first time you use it — e.g. 'a golden cross (the 50-day average "
+    "price rising above the 200-day, a classic uptrend signal)'. Never use bare "
+    "jargon (RSI, MACD, drawdown) without a short plain-English gloss. "
+    "Structure with short markdown sections: a one-line plain-English summary, "
     "**What they do**, **Why it's moving** (recent catalysts / why now), "
-    "**Market context**, and **Key risks**. Keep it skimmable (~250-350 words). "
-    "End with one line noting this is research context, not investment advice."
+    "**The technical picture** (translate the computed signals into plain language), "
+    "and **Key risks**. Keep it skimmable (~250-350 words). End with one line "
+    "noting this is research context, not investment advice."
 )
 
 
@@ -134,18 +139,18 @@ def get_or_generate(
 # --------------------------- cohort briefing ---------------------------
 
 COHORT_SYSTEM = (
-    "You are a portfolio strategist writing a brief momentum-cohort note for a "
-    "screener UI. Identify the dominant THEMES driving the group (group names by "
-    "theme/sector), the common root cause(s) of the momentum, and the shared "
-    "risks. Use web search for recent context. Output skimmable markdown: a "
-    "one-line takeaway, **Themes** (grouped), **What's driving it**, and "
-    "**Cross-cutting risks**. ~250-350 words. End noting this is research "
-    "context, not investment advice."
+    "You are a portfolio strategist writing a brief note for a NON-EXPERT reader. "
+    "Identify the dominant THEMES driving the group (group names by theme/sector), "
+    "the common root cause(s) of the momentum, and the shared risks. Use web search "
+    "for recent context. Explain any technical term in plain English. Output "
+    "skimmable markdown: a one-line plain takeaway, **Themes** (grouped), "
+    "**What's driving it**, and **Cross-cutting risks**. ~250-350 words. End "
+    "noting this is research context, not investment advice."
 )
 
 
 def build_cohort_prompt(
-    view: str, rows: list[dict], as_of: str, tech_text: str = ""
+    label: str, rows: list[dict], as_of: str, tech_text: str = ""
 ) -> str:
     lines = []
     for r in rows:
@@ -157,8 +162,7 @@ def build_cohort_prompt(
         )
     body = "\n".join(lines)
     return (
-        f"These are the current momentum {view} from a stock screener "
-        f"(as of {as_of}):\n\n{body}\n\n"
+        f"These are {label} from a stock screener (as of {as_of}):\n\n{body}\n\n"
         + (f"{tech_text}\n\n" if tech_text else "")
         + "Explain what themes connect them and why this group is moving now, "
         "citing the computed cohort technicals above where relevant (do not "
@@ -168,7 +172,8 @@ def build_cohort_prompt(
 
 
 def get_or_generate_cohort(
-    view: str,
+    label: str,
+    key: str,
     rows: list[dict],
     as_of: str,
     store: BarStore,
@@ -179,16 +184,15 @@ def get_or_generate_cohort(
     model: str | None = None,
     tech_text: str = "",
 ) -> dict:
-    """Cohort-level briefing, cached under a synthetic symbol key."""
+    """Group-level briefing (winners/losers/sector), cached under `key`."""
     settings = settings or get_settings()
-    key = f"__cohort_{view}"
 
     if not force:
         cached = store.get_research(key, as_of)
         if cached:
             return _cached_result(cached)
 
-    prompt = build_cohort_prompt(view, rows, as_of, tech_text)
+    prompt = build_cohort_prompt(label, rows, as_of, tech_text)
 
     if generate and settings.research_enabled:
         from finance.llm import complete_with_usage

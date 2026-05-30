@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useLeaderboard, useSectors } from "../lib/api";
+import { CohortPanel } from "../components/CohortPanel";
 import { pct, num, signColor } from "../lib/format";
 import type { LeaderboardRow } from "../types";
 
@@ -143,6 +144,9 @@ export function SectorBreakdown() {
                     {open && (
                       <tr className="bg-slate-950/40">
                         <td colSpan={7} className="px-4 py-3">
+                          <div className="mb-3">
+                            <CohortPanel view="winners" sector={s.sector} />
+                          </div>
                           {lb.isLoading ? (
                             <div className="text-xs text-slate-500">Loading stocks…</div>
                           ) : (
