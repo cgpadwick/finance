@@ -25,8 +25,10 @@ class Settings(BaseSettings):
 
     alpaca_api_key: str = ""
     alpaca_secret_key: str = ""
-    anthropic_api_key: str = ""
-    research_model: str = "claude-sonnet-4-6"
+    # LLM research via OpenRouter (one OpenAI-SDK client, any model slug).
+    openrouter_api_key: str = ""
+    research_model: str = "deepseek/deepseek-v4-flash"
+    research_web_search: bool = True  # append ":online" for live web grounding
 
     model_config = SettingsConfigDict(
         env_file=str(REPO_ROOT / ".env"),
@@ -40,7 +42,7 @@ class Settings(BaseSettings):
 
     @property
     def research_enabled(self) -> bool:
-        return bool(self.anthropic_api_key)
+        return bool(self.openrouter_api_key)
 
 
 # ----- tunable knobs (config.yaml) -----

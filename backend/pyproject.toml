@@ -18,7 +18,7 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "scikit-learn>=1.4",
     "umap-learn>=0.5.6",
-    "anthropic>=0.40",
+    "openai>=1.40",
 ]
 
 [project.optional-dependencies]

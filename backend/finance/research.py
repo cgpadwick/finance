@@ -49,19 +49,19 @@ def build_prompt(ctx: dict) -> str:
     )
 
 
-def _generate_with_claude(prompt: str, settings: Settings) -> str:
-    from anthropic import Anthropic
+def _generate_with_openrouter(prompt: str, settings: Settings) -> str:
+    """Generate via OpenRouter (any model slug). Appends ':online' for live
+    web-search grounding when research_web_search is on."""
+    from finance.llm import complete
 
-    client = Anthropic(api_key=settings.anthropic_api_key)
-    resp = client.messages.create(
-        model=settings.research_model,
-        max_tokens=1500,
-        system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": prompt}],
-        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
-    )
-    parts = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
-    return "\n".join(p for p in parts if p).strip()
+    model = settings.research_model
+    if settings.research_web_search and ":online" not in model:
+        model = f"{model}:online"
+    messages = [
+        {"role": "system", "content": SYSTEM},
+        {"role": "user", "content": prompt},
+    ]
+    return complete(messages, model=model, settings=settings)
 
 
 def get_or_generate(
@@ -88,7 +88,7 @@ def get_or_generate(
     prompt = build_prompt(ctx)
 
     if generate and settings.research_enabled:
-        report = _generate_with_claude(prompt, settings)
+        report = _generate_with_openrouter(prompt, settings)
         store.save_research(symbol, as_of, report, now)
         return {"mode": "generated", "report": report, "generated_at": now}
 

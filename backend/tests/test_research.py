@@ -29,7 +29,7 @@ def test_handoff_when_no_key(tmp_path):
     ctx = {"symbol": "MU", "name": "Micron", "as_of": "2026-05-29"}
     # generate=True but no key configured -> hand-off, never calls the network
     res = get_or_generate(
-        ctx, store, generate=True, settings=Settings(anthropic_api_key="")
+        ctx, store, generate=True, settings=Settings(openrouter_api_key="")
     )
     assert res["mode"] == "handoff"
     assert res["research_enabled"] is False
@@ -41,7 +41,7 @@ def test_returns_cached_report(tmp_path):
     store = BarStore(tmp_path / "t.duckdb")
     store.save_research("MU", "2026-05-29", "# cached report", "2026-05-29T00:00:00")
     ctx = {"symbol": "MU", "as_of": "2026-05-29"}
-    res = get_or_generate(ctx, store, generate=True, settings=Settings(anthropic_api_key="x"))
+    res = get_or_generate(ctx, store, generate=True, settings=Settings(openrouter_api_key="x"))
     assert res["mode"] == "cached"
     assert res["report"] == "# cached report"
     store.close()
