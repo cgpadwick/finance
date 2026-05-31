@@ -158,6 +158,13 @@ def _cached_embedding(key: str) -> str:
     from finance.embedding import compute_embedding
 
     cfg = _config_with_overrides(params)
+    # Reuse the cached (latest) leaderboard to skip the full-universe recompute.
+    # For a historical as_of we must recompute, so leave lb=None.
+    lb_df = None
+    if not params.get("as_of"):
+        lb_payload = json.loads(_cached_leaderboard(json.dumps({}, sort_keys=True)))
+        if lb_payload.get("rows"):
+            lb_df = pd.DataFrame(lb_payload["rows"])
     store = _read_store()
     try:
         emb = compute_embedding(
@@ -166,6 +173,8 @@ def _cached_embedding(key: str) -> str:
             method=params.get("method", "umap"),
             as_of_date=params.get("as_of"),
             dims=int(params.get("dims", 2)),
+            sector=params.get("sector"),
+            lb=lb_df,
         )
     finally:
         store.close()
@@ -178,10 +187,13 @@ def _cached_embedding(key: str) -> str:
 def embedding(
     method: str = Query("umap", description="umap | tsne | pca"),
     dims: int = Query(2, description="2 or 3"),
+    sector: str | None = Query(None, description="restrict to one sector (faster)"),
     lookback_days: int | None = Query(None),
     as_of: str | None = Query(None),
 ):
     params = {"method": method, "dims": 3 if dims == 3 else 2}
+    if sector is not None:
+        params["sector"] = sector
     if lookback_days is not None:
         params["lookback_days"] = lookback_days
     if as_of is not None:

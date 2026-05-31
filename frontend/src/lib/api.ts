@@ -139,11 +139,12 @@ export function useSectors() {
   });
 }
 
-export function useEmbedding(method: string, dims: number) {
+export function useEmbedding(method: string, dims: number, sector?: string) {
+  const sq = sector ? `&sector=${encodeURIComponent(sector)}` : "";
   return useQuery({
-    queryKey: ["embedding", method, dims],
+    queryKey: ["embedding", method, dims, sector ?? null],
     queryFn: () =>
-      fetchJson<EmbeddingResponse>(`/api/embedding?method=${method}&dims=${dims}`),
+      fetchJson<EmbeddingResponse>(`/api/embedding?method=${method}&dims=${dims}${sq}`),
   });
 }
 

@@ -64,8 +64,14 @@ def compute_embedding(
     method: str = "umap",
     as_of_date: str | None = None,
     dims: int = 2,
+    sector: str | None = None,
+    lb: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Embed the eligible (leaderboard) universe into 2D or 3D, with score/sector.
+
+    sector restricts to one sector's stocks — far fewer points AND far fewer
+    bars to read, so much faster. Pass `lb` (a precomputed leaderboard) to skip
+    the expensive full-universe recompute — the API hands in the cached one.
 
     Returns columns: symbol, x, y, (z if dims==3), score, sector, industry,
     name, is_winner, is_loser, last_close. Empty frame if not enough data.
@@ -74,7 +80,10 @@ def compute_embedding(
     own_store = store is None
     store = store or BarStore()
     try:
-        lb = compute_leaderboard(store, cfg, as_of_date=as_of_date)
+        if lb is None:
+            lb = compute_leaderboard(store, cfg, as_of_date=as_of_date)
+        if sector:
+            lb = lb[lb["sector"] == sector]
         if lb.empty or len(lb) < 5:
             return pd.DataFrame()
         symbols = lb["symbol"].tolist()

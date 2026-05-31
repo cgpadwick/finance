@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactECharts from "echarts-for-react";
 import "echarts-gl"; // registers scatter3D / grid3D
-import { useEmbedding } from "../lib/api";
+import { useEmbedding, useSectors } from "../lib/api";
 import type { EmbeddingPoint } from "../types";
 
 type Method = "umap" | "tsne" | "pca";
@@ -36,7 +36,13 @@ export function MarketMap() {
   const [method, setMethod] = useState<Method>("umap");
   const [colorBy, setColorBy] = useState<ColorBy>("score");
   const [is3d, setIs3d] = useState(true);
-  const { data, isLoading, isFetching, error } = useEmbedding(method, is3d ? 3 : 2);
+  const [sector, setSector] = useState<string>(""); // "" = all
+  const sectors = useSectors();
+  const { data, isLoading, isFetching, error } = useEmbedding(
+    method,
+    is3d ? 3 : 2,
+    sector || undefined,
+  );
   const navigate = useNavigate();
 
   const points = data?.points ?? [];
@@ -139,10 +145,24 @@ export function MarketMap() {
           <h2 className="text-lg font-semibold text-slate-100">Market Map</h2>
           <p className="text-xs text-slate-500">
             Each dot is a stock; nearby dots move together. {points.length} names
+            {sector ? ` in ${sector}` : " (all sectors — slower)"}
             {isFetching && <span className="ml-2 text-sky-400">computing…</span>}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={sector}
+            onChange={(e) => setSector(e.target.value)}
+            className="rounded-lg border border-slate-800 bg-slate-900/60 px-2 py-1.5 text-xs text-slate-200"
+            title="Scope the map to one sector (much faster)"
+          >
+            <option value="">All sectors (slower)</option>
+            {(sectors.data?.sectors ?? []).map((s) => (
+              <option key={s.sector} value={s.sector}>
+                {s.sector} ({s.count})
+              </option>
+            ))}
+          </select>
           <div className="flex gap-1 rounded-lg border border-slate-800 p-1">
             {([
               { k: true, label: "3D" },
