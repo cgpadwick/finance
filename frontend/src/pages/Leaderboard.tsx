@@ -19,10 +19,57 @@ import { compactMoney, money, num, pct, signColor } from "../lib/format";
 const col = createColumnHelper<LeaderboardRow>();
 
 type View = "winners" | "losers" | "all";
+type Display = "table" | "bars";
+
+// One stock as a diverging score bar (mirrors the Sectors drill-down look).
+function BarRow({ r, maxAbs }: { r: LeaderboardRow; maxAbs: number }) {
+  const w = (Math.abs(r.score) / maxAbs) * 50;
+  const pos = r.score >= 0;
+  return (
+    <div className="flex items-center gap-3 border-t border-slate-800/60 py-1.5 text-xs hover:bg-slate-800/30">
+      <span className="w-8 shrink-0 text-right tabular-nums text-slate-500">
+        {r.rank}
+      </span>
+      <Link
+        to={`/stock/${r.symbol}`}
+        className="w-16 shrink-0 font-semibold text-sky-400 hover:text-sky-300"
+      >
+        {r.symbol}
+      </Link>
+      <span
+        className="hidden w-40 shrink-0 truncate text-slate-400 sm:inline"
+        title={r.sector ?? ""}
+      >
+        {r.sector ?? "—"}
+      </span>
+      <span className={`w-12 shrink-0 text-right tabular-nums ${signColor(r.score)}`}>
+        {num(r.score, 2)}
+      </span>
+      <div className="relative h-2.5 flex-1 rounded bg-slate-800">
+        <div className="absolute left-1/2 top-0 h-full w-px bg-slate-600" />
+        <div
+          className={`absolute top-0 h-full rounded ${pos ? "bg-emerald-500" : "bg-rose-500"}`}
+          style={{ width: `${w}%`, left: pos ? "50%" : `${50 - w}%` }}
+        />
+      </div>
+      <span className={`w-14 shrink-0 text-right tabular-nums ${signColor(r.mom_12_1)}`}>
+        {pct(r.mom_12_1, 0)}
+      </span>
+      <span className="w-6 shrink-0 text-right">
+        {r.is_winner ? (
+          <span className="text-emerald-400">▲</span>
+        ) : r.is_loser ? (
+          <span className="text-rose-400">▼</span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
 
 export function Leaderboard() {
   const [overrides, setOverrides] = useState<FilterOverrides>({});
   const [view, setView] = useState<View>("winners");
+  const [display, setDisplay] = useState<Display>("table");
   const [showInsights, setShowInsights] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "score", desc: true },
@@ -59,6 +106,12 @@ export function Leaderboard() {
     if (sector !== "All") all = all.filter((r) => r.sector === sector);
     return all;
   }, [data, view, sector]);
+
+  // Stable bar scale across pages, computed over the full filtered set.
+  const maxAbs = useMemo(
+    () => Math.max(0.01, ...rows.map((r) => Math.abs(r.score))),
+    [rows],
+  );
 
   const columns = useMemo(
     () => [
@@ -186,6 +239,21 @@ export function Leaderboard() {
                 </button>
               ))}
             </div>
+            <div className="flex gap-1 rounded-lg border border-slate-800 p-1">
+              {(["table", "bars"] as Display[]).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDisplay(d)}
+                  className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition ${
+                    display === d
+                      ? "bg-slate-700 text-slate-100"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
             <button
               onClick={() => setShowInsights((s) => !s)}
               className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-1.5 text-xs font-semibold text-white shadow hover:from-violet-500 hover:to-fuchsia-500"
@@ -218,6 +286,30 @@ export function Leaderboard() {
           </div>
         )}
 
+        {display === "bars" ? (
+          <div className="rounded-xl border border-slate-800 bg-slate-900/30 px-4 py-3">
+            <div className="flex items-center gap-3 pb-1 text-[10px] uppercase tracking-wide text-slate-500">
+              <span className="w-8 text-right">#</span>
+              <span className="w-16">Symbol</span>
+              <span className="hidden w-40 sm:inline">Sector</span>
+              <span className="w-12 text-right">Score</span>
+              <span className="flex-1 text-center">laggard ← → leader</span>
+              <span className="w-14 text-right">12-1</span>
+              <span className="w-6" />
+            </div>
+            {isLoading ? (
+              <div className="py-10 text-center text-slate-500">Loading…</div>
+            ) : rows.length === 0 ? (
+              <div className="py-10 text-center text-slate-500">No stocks match.</div>
+            ) : (
+              table
+                .getRowModel()
+                .rows.map((r) => (
+                  <BarRow key={r.id} r={r.original} maxAbs={maxAbs} />
+                ))
+            )}
+          </div>
+        ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-800">
           <table className="w-full text-sm">
             <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-400">
@@ -262,6 +354,7 @@ export function Leaderboard() {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* pagination controls */}
         <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
